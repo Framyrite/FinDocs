@@ -481,24 +481,43 @@ PostgreSQL + pgvector
 ## 13. Технологический стек
 
 | Область                  | Технология                       |
+
 | Frontend                 | React + TypeScript + Vite        |
+
 | Backend                  | Python + FastAPI                 |
+
 | Валидация                | Pydantic                         |
+
 | ORM                      | SQLAlchemy                       |
+
 | Миграции                 | Alembic                          |
+
 | База данных              | PostgreSQL                       |
+
 | Векторный поиск          | pgvector                         |
+
 | TXT                      | Python                           |
+
 | DOCX                     | python-docx                      |
+
 | PPTX                     | python-pptx                      |
+
 | PDF                      | pypdf, при необходимости PyMuPDF |
+
 | Embeddings               | Sentence Transformers            |
+
 | Baseline embeddings      | multilingual-e5-small            |
+
 | Локальная LLM            | Ollama                           |
+
 | Конкретная LLM           | выбирается экспериментально      |
+
 | Backend-тесты            | pytest                           |
+
 | Frontend-тесты           | Vitest + Testing Library         |
+
 | E2E                      | Playwright                       |
+
 | Локальная инфраструктура | Docker Compose                   |
 
 ---
