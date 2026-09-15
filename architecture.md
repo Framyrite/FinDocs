@@ -480,45 +480,27 @@ PostgreSQL + pgvector
 
 ## 13. Технологический стек
 
-| Область                  | Технология                       |
-
-| Frontend                 | React + TypeScript + Vite        |
-
-| Backend                  | Python + FastAPI                 |
-
-| Валидация                | Pydantic                         |
-
-| ORM                      | SQLAlchemy                       |
-
-| Миграции                 | Alembic                          |
-
-| База данных              | PostgreSQL                       |
-
-| Векторный поиск          | pgvector                         |
-
-| TXT                      | Python                           |
-
-| DOCX                     | python-docx                      |
-
-| PPTX                     | python-pptx                      |
-
-| PDF                      | pypdf, при необходимости PyMuPDF |
-
-| Embeddings               | Sentence Transformers            |
-
-| Baseline embeddings      | multilingual-e5-small            |
-
-| Локальная LLM            | Ollama                           |
-
-| Конкретная LLM           | выбирается экспериментально      |
-
-| Backend-тесты            | pytest                           |
-
-| Frontend-тесты           | Vitest + Testing Library         |
-
-| E2E                      | Playwright                       |
-
-| Локальная инфраструктура | Docker Compose                   |
+| Область | Технология |
+|---|---|
+| Frontend | React + TypeScript + Vite |
+| Backend | Python + FastAPI |
+| Валидация | Pydantic |
+| ORM | SQLAlchemy |
+| Миграции | Alembic |
+| База данных | PostgreSQL |
+| Векторный поиск | pgvector |
+| TXT | Python |
+| DOCX | python-docx |
+| PPTX | python-pptx |
+| PDF | pypdf, при необходимости PyMuPDF |
+| Embeddings | Sentence Transformers |
+| Baseline embeddings | multilingual-e5-small |
+| Локальная LLM | Ollama |
+| Конкретная LLM | выбирается экспериментально |
+| Backend-тесты | pytest |
+| Frontend-тесты | Vitest + Testing Library |
+| E2E-тесты | Playwright |
+| Инфраструктура | Docker Compose |
 
 ---
 
@@ -741,26 +723,17 @@ Worker
 
 ## 21. Границы ответственности компонентов
 
-| Компонент                    | Ответственность                            |
-
-| Frontend                     | Интерфейс и взаимодействие с пользователем |
-
-| Backend API                  | API, координация операций, правила системы |
-
-| Работа с документами         | Управление документами                     |
-
-| Обработка документов         | Извлечение и подготовка содержимого        |
-
-| RAG                          | Retrieval и подготовка контекста           |
-
-| Адаптер LLM                  | Единый интерфейс работы с языковой моделью |
-
-| PostgreSQL                   | Хранение структурированных данных          |
-
-| pgvector                     | Векторный поиск                            | 
-
-| Ollama                       | Запуск локальной LLM                       |
-
+| Компонент | Ответственность |
+|---|---|
+| Frontend | Интерфейс и взаимодействие с пользователем |
+| Backend API | API, координация операций, правила системы |
+| Работа с документами | Управление документами |
+| Обработка документов | Извлечение и подготовка содержимого |
+| RAG | Retrieval и подготовка контекста |
+| Адаптер LLM | Единый интерфейс работы с языковой моделью |
+| PostgreSQL | Хранение структурированных данных |
+| pgvector | Векторный поиск |
+| Ollama | Запуск локальной LLM |
 Компоненты не должны дублировать ответственность друг друга.
 
 ---
