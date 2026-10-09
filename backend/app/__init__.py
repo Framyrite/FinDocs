@@ -1,0 +1,1 @@
+"""FinDocs backend application."""
