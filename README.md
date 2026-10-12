@@ -1,13 +1,38 @@
 # FinDocs
 
-Private team repository for the FinDocs project.
+FinDocs – учебный проект для работы с образовательными материалами.
 
-## Structure
+Цель проекта – предоставить студентам и преподавателям возможность
+загружать учебные документы и получать ответы на вопросы
+с использованием поиска по материалам и локальной языковой модели.
 
-- `backend/` — server-side code, API, business logic, and data access.
-- `frontend/` — client-side application and user interface.
-- `tests/` — automated tests, test cases, and other testing-related files.
+Проект находится в разработке.
 
-## Working agreement
+## Структура проекта
 
-Keep files in the directory that matches their purpose. Project-wide documentation and shared configuration can stay in the repository root.
+- `backend/` – серверная часть приложения на Python и FastAPI.
+- `frontend/` – клиентская часть приложения.
+- `tests/` – каталог для тестов и тестовых материалов.
+
+## Текущее состояние
+
+Реализован базовый каркас backend:
+- приложение FastAPI;
+- endpoint `GET /health`;
+- конфигурация через переменные окружения;
+- интерфейс `LLMAdapter`;
+- тестовая реализация `MockLLM`.
+
+Клиентская часть и RAG-функциональность находятся в разработке.
+
+## Документация
+
+- [Инструкция запуска backend](backend/README.md)
+- [Архитектура проекта](architecture.md)
+- [Архитектурные решения](decisions.md)
+
+## Разработка
+
+Изменения выполняются в отдельных Git-ветках.
+Перед объединением с `main` изменения проходят проверку
+другим участником команды.
