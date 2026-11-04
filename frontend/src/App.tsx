@@ -21,7 +21,11 @@ function App() {
     api.getDocuments().then((data) => {
       setDocuments(data.items);
       setIsLoading(false);
-    });
+    })
+    .catch(() => {
+        alert('Не удалось загрузить список документов');
+        setIsLoading(false);
+      });
   }, []);
 
   const handleUpload = async (file: File) => {

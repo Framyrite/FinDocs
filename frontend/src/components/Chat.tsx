@@ -46,6 +46,7 @@ export const Chat: React.FC<ChatProps> = ({ onAsk, hasReadyDocuments }) => {
               : "Сначала загрузите и дождитесь обработки документа"
           }
           disabled={isWaiting}
+          maxLength={2000}
           style={{
             flex: 1,
             padding: '10px',
@@ -81,15 +82,30 @@ export const Chat: React.FC<ChatProps> = ({ onAsk, hasReadyDocuments }) => {
       {/* Блок ответа */}
       {answer && (
         <div style={{ marginTop: '20px' }}>
+          {/* Внешний контейнер с цветом */}
           <div style={{
             padding: '16px',
-            backgroundColor: answer.status === 'insufficient_info' ? '#fff3cd' : '#e8f5e9',
-            borderLeft: `4px solid ${answer.status === 'insufficient_info' ? '#ffc107' : '#4caf50'}`,
+            backgroundColor: 
+              answer.status === 'insufficient_info' ? '#fff3cd' : 
+              answer.status === 'partial' ? '#fff3cd' : 
+              '#e8f5e9',
+            borderLeft: `4px solid ${
+              answer.status === 'insufficient_info' ? '#ffc107' : 
+              answer.status === 'partial' ? '#ffc107' : 
+              '#4caf50'
+            }`,
             borderRadius: '4px',
             whiteSpace: 'pre-wrap',
             marginBottom: '16px'
           }}>
             {answer.answer}
+
+            {/* Пометка для частичного ответа */}
+            {answer.status === 'partial' && (
+              <div style={{ marginTop: '8px', fontWeight: 'bold', color: '#856404' }}>
+                ⚠️ Ответ неполный: система нашла информацию только по части вопроса.
+              </div>
+            )}
           </div>
 
           {/* Источники */}
