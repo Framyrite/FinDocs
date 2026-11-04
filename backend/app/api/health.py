@@ -9,7 +9,6 @@ router = APIRouter(tags=["health"])
 
 
 class HealthResponse(BaseModel):
-
     status: Literal["ok"] = "ok"
 
 
