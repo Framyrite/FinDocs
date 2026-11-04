@@ -1,6 +1,5 @@
 """Typed settings loaded from the environment and backend/.env."""
 
-from functools import lru_cache
 from pathlib import Path
 
 from pydantic import Field
@@ -23,9 +22,3 @@ class Settings(BaseSettings):
 
     app_name: str = Field(default="FinDocs Backend", min_length=1)
     debug: bool = False
-
-
-@lru_cache(maxsize=1)
-def get_settings() -> Settings:
-    """Read and validate configuration once per process."""
-    return Settings()
