@@ -1,75 +1,82 @@
-# React + TypeScript + Vite
+# FinDocs Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Фронтенд-приложение FinDocs (MVP-срез TXT) на React + TypeScript + Vite.
 
-Currently, two official plugins are available:
+## Требования
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js (LTS версия, рекомендуется 20+)
+- npm (менеджер пакетов)
 
-## React Compiler
+## Установка и запуск
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Перейдите в папку `frontend`:
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+cd frontend
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+2. Установите зависимости:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
 ```
+
+3. Запустите dev-сервер:
+
+```bash
+npm run dev
+```
+
+4. Откройте браузер по адресу `http://localhost:5173/`.
+
+## Сборка
+
+```bash
+npm run build
+```
+
+## Mock-режим и реальный API
+
+На текущем этапе backend API ещё не готов, поэтому приложение работает в **mock-режиме**. Все данные (документы, ответы, источники) генерируются локально на клиенте.
+
+- **Включение/выключение mock-режима:** в файле `src/api/index.ts` через флаг `USE_MOCK`.
+- **Адрес реального API:** задаётся через переменную окружения `VITE_API_BASE_URL` в файле `.env` (шаблон лежит в `.env.example`). Если переменная пуста, используется относительный путь.
+
+## Реализованные сценарии
+
+- Просмотр списка документов с разными статусами (`uploaded`, `processing`, `ready`, `error`).
+- Поиск по названию документа.
+- Имитация загрузки TXT-файла с валидацией (формат `.txt`, размер до 10 МБ).
+- Имитация обработки документа (смена статуса `uploaded` → `ready`).
+- Задавание вопроса и получение ответа (полный ответ, недостаточно информации).
+- Отображение источников с цитатами.
+
+## Используемые API-методы (в mock-режиме)
+
+В соответствии с `mvp-contracts.md` v0.2, клиентский слой эмулирует следующие методы:
+
+- `GET /documents` — получение списка документов.
+- `POST /documents` — загрузка TXT-файла (multipart/form-data).
+- `POST /chat/ask` — отправка вопроса и получение ответа.
+
+После готовности backend вызовы будут перенаправлены на реальные endpoint'ы без изменения компонентов (благодаря изоляции в `src/api`).
+
+## Ограничения
+
+- Поддерживается только формат `.txt`.
+- Нет реальной интеграции с backend (используется mock).
+- Нет авторизации и регистрации.
+- Нет истории диалога.
+- Автоматические тесты находятся в разработке.
+
+## Структура проекта
+
+- `src/api` — клиент для работы с API (и переключатель mock/real).
+- `src/components` — React-компоненты (`DocumentCard`, `DocumentList`, `UploadButton`, `Chat`, `SourceCard`, `Navbar`).
+- `src/mocks` — mock-данные и mock-API.
+- `src/types` — TypeScript-типы (соответствуют `mvp-contracts.md`).
+
+## Ссылки
+
+- Макеты Figma: *(ссылка будет добавлена после согласования с руководителем проекта)*
+- Контракты API: `mvp-contracts.md` v0.2
