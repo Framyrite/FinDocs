@@ -135,10 +135,9 @@ documents into text blocks and overlapping chunks.
 From the repository root:
 
 ```bash
+cd backend
 python3.12 -m venv .venv
 source .venv/bin/activate
-
-cd backend
 python -m pip install -r requirements-dev.txt
 ```
 
