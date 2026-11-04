@@ -45,7 +45,7 @@ export const Chat: React.FC<ChatProps> = ({ onAsk, hasReadyDocuments }) => {
               ? "Введите свой вопрос..." 
               : "Сначала загрузите и дождитесь обработки документа"
           }
-          disabled={isWaiting}
+          disabled={isWaiting || !hasReadyDocuments}
           maxLength={2000}
           style={{
             flex: 1,
