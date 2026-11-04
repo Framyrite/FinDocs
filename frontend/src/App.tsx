@@ -5,6 +5,8 @@ import { api } from './api';
 import { DocumentList } from './components/DocumentList';
 import { UploadButton } from './components/UploadButton';
 import { Chat } from './components/Chat';
+import { Navbar } from './components/Navbar';
+import type { Tab } from './components/Navbar';
 import './App.css';
 
 function App() {
@@ -12,6 +14,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('chat'); // По умолчанию открыт чат
 
   useEffect(() => {
     // Загружаем документы при старте
@@ -55,25 +58,36 @@ function App() {
     doc.filename.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-    // Проверяем, есть ли хотя бы один готовый документ
+  // Проверяем, есть ли хотя бы один готовый документ
   const hasReadyDocuments = documents.some(doc => doc.status === 'ready');
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1>Мои документы</h1>
-        <UploadButton onUpload={handleUpload} disabled={isUploading} />
-      </div>
+      <h1 style={{ marginBottom: '16px' }}>FinDocs</h1>
       
-      <DocumentList
-        documents={filteredDocs}
-        isLoading={isLoading}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-      />
+      <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Добавили чат внизу */}
-      <Chat onAsk={handleAskQuestion} hasReadyDocuments={hasReadyDocuments} />
+      {/* Вкладка Документы */}
+      {activeTab === 'documents' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h2>Мои документы</h2>
+            <UploadButton onUpload={handleUpload} disabled={isUploading} />
+          </div>
+          
+          <DocumentList
+            documents={filteredDocs}
+            isLoading={isLoading}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+          />
+        </>
+      )}
+
+      {/* Вкладка Чат */}
+      {activeTab === 'chat' && (
+        <Chat onAsk={handleAskQuestion} hasReadyDocuments={hasReadyDocuments} />
+      )}
     </div>
   );
 }
