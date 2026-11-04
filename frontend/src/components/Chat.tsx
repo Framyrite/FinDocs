@@ -24,7 +24,7 @@ export const Chat: React.FC<ChatProps> = ({ onAsk, hasReadyDocuments }) => {
       const result = await onAsk(question);
       setAnswer(result);
       setQuestion(''); // Очищаем поле после ответа
-    } catch (error) {
+    } catch {
       alert('Ошибка при получении ответа');
     } finally {
       setIsWaiting(false);

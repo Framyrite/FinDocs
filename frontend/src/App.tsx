@@ -55,7 +55,7 @@ function App() {
         );
       }, 3000);
       
-    } catch (error) {
+    } catch {
       alert('Ошибка загрузки файла');
     } finally {
       setIsUploading(false);
@@ -72,7 +72,7 @@ function App() {
     try {
       await api.deleteDocument(id);
       setDocuments(prev => prev.filter(d => d.id !== id));
-    } catch (error) {
+    } catch {
       alert('Ошибка удаления');
     }
   };

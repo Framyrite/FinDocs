@@ -22,14 +22,14 @@ export async function request<T>(
 
   // Если ответ не OK (4xx, 5xx)
   if (!response.ok) {
+    let errorMessage = `API error: ${response.status} ${response.statusText}`;
     try {
       const errorData: ApiErrorResponse = await response.json();
-      // Выбрасываем ошибку с кодом и сообщением из контракта
-      throw new Error(`${errorData.error.code}: ${errorData.error.message}`);
-    } catch (e) {
-      // Если не удалось распарсить JSON, выбрасываем общую ошибку
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+      errorMessage = `${errorData.error.code}: ${errorData.error.message}`;
+    } catch {
+      // Если не удалось распарсить JSON, оставляем стандартное сообщение
     }
+    throw new Error(errorMessage);
   }
 
   // 204 No Content — тело пустое

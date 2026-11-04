@@ -29,7 +29,7 @@ export const mockApi = {
     return newDoc;
   },
 
-  async deleteDocument(id: string): Promise<void> {
+  async deleteDocument(): Promise<void> {
     await delay(300);
     // В моке просто ничего не делаем, список обновится на фронте
   },
