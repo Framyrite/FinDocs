@@ -30,5 +30,10 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -r requirements-dev.txt
 
+      - name: Download tokenizer for TXT tests
+        run: |
+          mkdir -p models/multilingual-e5-small
+          curl -fL --retry 3 "https://huggingface.co/intfloat/multilingual-e5-small/resolve/ada7b62be30f82b0bc5da131b0477721c8fc14e9/tokenizer.json" -o models/multilingual-e5-small/tokenizer.json
+
       - name: Run all tests (Unit & QA)
         run: python -m pytest tests/ ../tests/ -q
