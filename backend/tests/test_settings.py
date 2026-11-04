@@ -1,3 +1,5 @@
+"""Regression tests for settings validation, configuration sources, and isolation."""
+
 import pytest
 from pydantic import ValidationError
 
@@ -6,6 +8,7 @@ from app.main import create_app
 
 
 def test_settings_defaults(monkeypatch):
+    """Check documented defaults without reading the developer's local .env."""
     monkeypatch.delenv("FINDOCS_APP_NAME", raising=False)
     monkeypatch.delenv("FINDOCS_DEBUG", raising=False)
 
@@ -16,6 +19,7 @@ def test_settings_defaults(monkeypatch):
 
 
 def test_settings_from_environment(monkeypatch):
+    """Ensure FINDOCS_ variables are read and boolean strings are parsed correctly."""
     monkeypatch.setenv("FINDOCS_APP_NAME", "Custom FinDocs")
     monkeypatch.setenv("FINDOCS_DEBUG", "true")
 
@@ -26,6 +30,7 @@ def test_settings_from_environment(monkeypatch):
 
 
 def test_settings_from_dotenv(tmp_path, monkeypatch):
+    """Load configuration from an isolated temporary .env file."""
     monkeypatch.delenv("FINDOCS_APP_NAME", raising=False)
     monkeypatch.delenv("FINDOCS_DEBUG", raising=False)
 
@@ -42,6 +47,7 @@ def test_settings_from_dotenv(tmp_path, monkeypatch):
 
 
 def test_environment_overrides_dotenv(tmp_path, monkeypatch):
+    """Verify process environment variables take priority over .env values."""
     env_file = tmp_path / ".env"
     env_file.write_text(
         'FINDOCS_APP_NAME="From dotenv"\n',
@@ -56,6 +62,7 @@ def test_environment_overrides_dotenv(tmp_path, monkeypatch):
 
 
 def test_settings_rejects_empty_app_name(monkeypatch):
+    """Reject whitespace-only names after automatic whitespace stripping."""
     monkeypatch.setenv("FINDOCS_APP_NAME", "   ")
 
     with pytest.raises(ValidationError):
@@ -63,6 +70,7 @@ def test_settings_rejects_empty_app_name(monkeypatch):
 
 
 def test_settings_rejects_invalid_debug(monkeypatch):
+    """Raise a validation error instead of silently falling back to False."""
     monkeypatch.setenv("FINDOCS_DEBUG", "not-a-boolean")
 
     with pytest.raises(ValidationError):
@@ -70,6 +78,7 @@ def test_settings_rejects_invalid_debug(monkeypatch):
 
 
 def test_create_app_does_not_cache_settings(monkeypatch):
+    """Ensure each application creation reads the current environment independently."""
     monkeypatch.setenv("FINDOCS_APP_NAME", "First application")
     first_app = create_app()
 
@@ -82,6 +91,7 @@ def test_create_app_does_not_cache_settings(monkeypatch):
 
 
 def test_create_app_respects_explicit_settings(monkeypatch):
+    """Ensure injected settings override environment values during app creation."""
     monkeypatch.setenv("FINDOCS_APP_NAME", "From environment")
 
     settings = Settings(
