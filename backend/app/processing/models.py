@@ -1,3 +1,4 @@
+"""Data models for TXT document blocks, chunks, and processing results."""
 
 from dataclasses import dataclass
 from typing import Literal

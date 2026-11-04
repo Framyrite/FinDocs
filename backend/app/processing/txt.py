@@ -1,3 +1,4 @@
+"""UTF-8 TXT decoding and input validation."""
 
 from .errors import EmptyDocumentError, InvalidTxtEncodingError
 

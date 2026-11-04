@@ -1,3 +1,4 @@
+"""Public interface for the TXT processing module."""
 
 from .errors import (
     EmptyDocumentError,
