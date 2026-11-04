@@ -1,9 +1,10 @@
 // frontend/src/App.tsx
 import { useEffect, useState } from 'react';
-import type { Document } from './types/api';
+import type { Document, Answer } from './types/api';
 import { api } from './api';
 import { DocumentList } from './components/DocumentList';
 import { UploadButton } from './components/UploadButton';
+import { Chat } from './components/Chat';
 import './App.css';
 
 function App() {
@@ -45,6 +46,11 @@ function App() {
     }
   };
 
+  // Функция для отправки вопроса
+  const handleAskQuestion = async (question: string): Promise<Answer> => {
+    return api.askQuestion({ question, document_ids: null });
+  };
+
   const filteredDocs = documents.filter(doc => 
     doc.filename.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -62,6 +68,9 @@ function App() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
       />
+
+      {/* Добавили чат внизу */}
+      <Chat onAsk={handleAskQuestion} />
     </div>
   );
 }
