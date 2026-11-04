@@ -1,7 +1,7 @@
 
 """Tests for UTF-8 TXT decoding and processing results."""
 
-from uuid import UUID
+from uuid import UUID, uuid5
 
 import pytest
 
@@ -142,3 +142,43 @@ def test_processing_rejects_invalid_input() -> None:
 
     with pytest.raises(EmptyDocumentError):
         process_txt(b" \n\t ", DOCUMENT_ID)
+
+
+def test_processing_uuid5_identifiers() -> None:
+    """Verify deterministic UUID5 identifiers for blocks and chunks."""
+
+    text = "Привет, FinDocs! 👋\r\n" * 100
+    data = text.encode("utf-8")
+
+    result = process_txt(data, DOCUMENT_ID)
+
+    block = result.blocks[0]
+
+    assert block.id == uuid5(DOCUMENT_ID, "block:0")
+
+    for position, chunk in enumerate(result.chunks):
+        assert chunk.id == uuid5(
+            DOCUMENT_ID,
+            f"chunk:{position}",
+        )
+
+        assert chunk.document_id == DOCUMENT_ID
+        assert chunk.block_id == block.id
+        assert chunk.position == position
+
+    assert len({chunk.id for chunk in result.chunks}) == len(
+        result.chunks
+    )
+
+    other_document_id = UUID(
+        "87654321-4321-5678-4321-876543218765"
+    )
+
+    other_result = process_txt(
+        data,
+        other_document_id,
+    )
+
+    assert other_result.blocks[0].id != block.id
+
+    print("OK: deterministic UUID5 identifiers")
