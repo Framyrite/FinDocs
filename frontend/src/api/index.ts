@@ -20,5 +20,11 @@ export const api = {
     // Позже здесь будет реальный запрос:
     // return request<Answer>('/chat/ask', { method: 'POST', body: JSON.stringify(req) });
     throw new Error('Real API not implemented yet');
-  }
+  },
+
+  async uploadDocument(file: File): Promise<Document> {
+    if (USE_MOCK) return mockApi.uploadDocument(file);
+    
+    throw new Error('Real API not implemented yet');
+  },
 };

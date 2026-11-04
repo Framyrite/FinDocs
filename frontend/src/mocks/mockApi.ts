@@ -12,6 +12,23 @@ export const mockApi = {
     return { items: mockDocuments, total: mockDocuments.length };
   },
 
+  async uploadDocument(file: File): Promise<Document> {
+    await delay(800); // Имитация отправки на сервер
+    
+    const newDoc: Document = {
+      id: crypto.randomUUID(), // Генерируем UUID прямо в браузере
+      filename: file.name,
+      format: 'txt',
+      status: 'uploaded',
+      error_code: null,
+      error_message: null,
+      size_bytes: file.size,
+      created_at: new Date().toISOString(),
+    };
+    
+    return newDoc;
+  },
+
   // Имитация POST /chat/ask
   async askQuestion(_request: AskRequest): Promise<Answer> {
     await delay(1000);
