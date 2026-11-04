@@ -1,36 +1,60 @@
 // frontend/src/api/index.ts
 import { mockApi } from '../mocks/mockApi';
-import type { Document, AskRequest, Answer } from '../types/api';
+import { request } from './client';
+import type { Document, AskRequest, Answer, DocumentListResponse } from '../types/api';
 
 // Флаг: используем ли мы mock-режим (пока да, так как бэкенда нет)
+// Когда бэкенд будет готов, поменяй на false или используй переменную окружения
 const USE_MOCK = true;
 
 export const api = {
-  async getDocuments(): Promise<{ items: Document[], total: number }> {
+  // GET /documents
+  async getDocuments(): Promise<DocumentListResponse> {
     if (USE_MOCK) return mockApi.getDocuments();
-    
-    // Позже здесь будет реальный запрос:
-    // return request<{ items: Document[], total: number }>('/documents');
-    throw new Error('Real API not implemented yet');
+    return request<DocumentListResponse>('/documents');
   },
 
-  async askQuestion(req: AskRequest): Promise<Answer> {
-    if (USE_MOCK) return mockApi.askQuestion(req);
-    
-    // Позже здесь будет реальный запрос:
-    // return request<Answer>('/chat/ask', { method: 'POST', body: JSON.stringify(req) });
-    throw new Error('Real API not implemented yet');
+  // GET /documents/{id}
+  async getDocumentById(id: string): Promise<Document> {
+    if (USE_MOCK) {
+      const data = await mockApi.getDocuments();
+      const doc = data.items.find(d => d.id === id);
+      if (!doc) throw new Error('Документ не найден');
+      return doc;
+    }
+    return request<Document>(`/documents/${id}`);
   },
 
+  // POST /documents
   async uploadDocument(file: File): Promise<Document> {
     if (USE_MOCK) return mockApi.uploadDocument(file);
     
-    throw new Error('Real API not implemented yet');
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    return request<Document>('/documents', {
+      method: 'POST',
+      body: formData,
+      // Не ставим Content-Type, браузер сам выставит multipart/form-data с boundary
+      headers: {},
+    });
   },
 
+  // DELETE /documents/{id}
   async deleteDocument(id: string): Promise<void> {
     if (USE_MOCK) return mockApi.deleteDocument(id);
-    // return request<void>(`/documents/${id}`, { method: 'DELETE' });
-    throw new Error('Real API not implemented yet');
+    return request<void>(`/documents/${id}`, { method: 'DELETE' });
+  },
+
+  // POST /chat/ask
+  async askQuestion(req: AskRequest): Promise<Answer> {
+    if (USE_MOCK) return mockApi.askQuestion(req);
+    return request<Answer>('/chat/ask', {
+      method: 'POST',
+      body: JSON.stringify(req),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
   },
 };
