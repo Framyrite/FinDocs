@@ -12,7 +12,6 @@ def create_app(
     settings: Settings | None = None,
     llm_adapter: LLMAdapter | None = None,
 ) -> FastAPI:
-    """Create the application with an interchangeable LLM adapter."""
     config = Settings() if settings is None else settings
     adapter = MockLLM() if llm_adapter is None else llm_adapter
 
