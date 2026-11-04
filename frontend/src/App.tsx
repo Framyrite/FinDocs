@@ -33,14 +33,23 @@ function App() {
       // 2. Добавляем в список
       setDocuments(prev => [newDoc, ...prev]);
       
-      // 3. Имитация обработки (через 2 секунды меняем статус на ready)
+      // 3. Через 1 секунду меняем статус на processing
+      setTimeout(() => {
+        setDocuments(prev => 
+          prev.map(d => 
+            d.id === newDoc.id ? { ...d, status: 'processing' as const } : d
+          )
+        );
+      }, 1000);
+
+      // Еще через 2 секунды (итого 3) меняем статус на ready
       setTimeout(() => {
         setDocuments(prev => 
           prev.map(d => 
             d.id === newDoc.id ? { ...d, status: 'ready' as const } : d
           )
         );
-      }, 2000);
+      }, 3000);
       
     } catch (error) {
       alert('Ошибка загрузки файла');
