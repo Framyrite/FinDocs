@@ -9,13 +9,9 @@ def decode_txt(data: bytes) -> str:
     try:
         text = data.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
-        raise InvalidTxtEncodingError(
-            "TXT file must use UTF-8 encoding"
-        ) from exc
+        raise InvalidTxtEncodingError("TXT file must use UTF-8 encoding") from exc
 
     if not text.strip():
-        raise EmptyDocumentError(
-            "TXT file is empty or contains only whitespace"
-        )
+        raise EmptyDocumentError("TXT file is empty or contains only whitespace")
 
     return text

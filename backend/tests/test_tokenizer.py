@@ -1,4 +1,3 @@
-
 """Tests for loading and validating the pinned TXT tokenizer."""
 
 import hashlib

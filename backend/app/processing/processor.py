@@ -1,4 +1,3 @@
-
 """Process TXT documents into blocks and overlapping chunks."""
 
 from uuid import UUID, uuid5
