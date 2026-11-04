@@ -110,3 +110,101 @@ Mock возвращает одинаковый результат для оди�
 Будущая бизнес-логика обращается к интерфейсу `LLMAdapter`; конкретная
 реализация подключается при создании приложения.
 
+## TXT Processing
+
+The backend includes a TXT processing module that converts UTF-8
+documents into text blocks and overlapping chunks.
+
+### Features
+
+- UTF-8 and UTF-8 BOM support.
+- Preservation of original whitespace and line breaks.
+- Validation of empty and incorrectly encoded documents.
+- Token-based chunking with 350 tokens per window and 50-token overlap.
+- Exact character offsets for each chunk.
+- Deterministic UUID5 identifiers for blocks and chunks.
+
+### Requirements
+
+- Python 3.12
+- `tokenizers==0.23.3`
+- The pinned `multilingual-e5-small` tokenizer file
+
+### Installation
+
+From the repository root:
+
+```bash
+cd backend
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+```
+
+### Download the tokenizer
+
+The tokenizer file is not stored in Git.
+
+From the `backend` directory:
+
+```bash
+mkdir -p models/multilingual-e5-small
+
+curl -fL --retry 3 \
+  "https://huggingface.co/intfloat/multilingual-e5-small/resolve/ada7b62be30f82b0bc5da131b0477721c8fc14e9/tokenizer.json" \
+  -o models/multilingual-e5-small/tokenizer.json
+```
+
+Verify the SHA-256 checksum:
+
+```bash
+echo "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39  models/multilingual-e5-small/tokenizer.json" \
+  | shasum -a 256 -c -
+```
+
+Expected output:
+
+```text
+models/multilingual-e5-small/tokenizer.json: OK
+```
+
+The tokenizer directory can also be configured using
+`FINDOCS_TOKENIZER_DIR`.
+
+The application does not automatically download the tokenizer.
+
+### Running tests
+
+From the `backend` directory:
+
+```bash
+python -m pytest -v tests/
+```
+
+The test suite covers TXT decoding, input validation,
+chunk boundaries, character offsets, deterministic processing,
+and tokenizer loading errors.
+
+### Usage example
+
+```python
+from uuid import uuid4
+from app.processing import process_txt
+
+document_id = uuid4()
+
+result = process_txt(
+    "Привет, FinDocs!".encode("utf-8"),
+    document_id,
+)
+
+print(result.blocks)
+print(result.chunks)
+```
+
+### Scope
+
+This module performs in-memory TXT processing only.
+
+It does not implement document storage, HTTP endpoints,
+vector search, RAG, or LLM integration.
