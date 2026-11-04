@@ -7,8 +7,8 @@ from .errors import (
     TxtProcessingError,
 )
 from .models import Chunk, DocumentBlock, ProcessingResult
-from .txt import decode_txt
 from .processor import process_txt
+from .txt import decode_txt
 
 __all__ = [
     "DocumentBlock",

@@ -1,4 +1,3 @@
-
 """Tests for token-based TXT chunking and character offsets."""
 
 import pytest
@@ -40,9 +39,7 @@ class FakeTokenizer:
         if self._offsets is not None:
             return FakeEncoding(self._offsets)
 
-        return FakeEncoding([
-            (i, i + 1) for i in range(len(text))
-        ])
+        return FakeEncoding([(i, i + 1) for i in range(len(text))])
 
 
 @pytest.mark.parametrize(
@@ -70,7 +67,6 @@ class FakeTokenizer:
 )
 def test_chunk_boundaries(length, expected):
     """Verify exact window boundaries."""
-
     text = "a" * length
     tokenizer = FakeTokenizer()
 
@@ -81,7 +77,6 @@ def test_chunk_boundaries(length, expected):
 
 def test_chunking_constants():
     """Verify the agreed chunking parameters."""
-
     assert CHUNK_SIZE == 350
     assert CHUNK_OVERLAP == 50
     assert CHUNK_STEP == 300
@@ -89,7 +84,6 @@ def test_chunking_constants():
 
 def test_chunk_ranges_cover_original_text():
     """Verify coverage and overlap for a long document."""
-
     text = "a" * 1200
     tokenizer = FakeTokenizer()
 
@@ -102,24 +96,21 @@ def test_chunk_ranges_cover_original_text():
         assert 0 <= start < end <= len(text)
         assert end - start <= CHUNK_SIZE
 
-    for previous, current in zip(ranges, ranges[1:]):
+    for previous, current in zip(ranges[:-1], ranges[1:], strict=True):
         assert current[0] <= previous[1]
         assert current[0] < previous[1]
 
 
 def test_whitespace_is_preserved():
     """Include original whitespace in character ranges."""
-
     text = " A B C "
 
-    tokenizer = FakeTokenizer(
-        offsets=[(1, 2), (3, 4), (5, 6)]
-    )
+    tokenizer = FakeTokenizer(offsets=[(1, 2), (3, 4), (5, 6)])
 
     ranges = split_into_chunk_ranges(text, tokenizer)
 
     assert ranges == [(0, len(text))]
-    assert text[ranges[0][0]:ranges[0][1]] == text
+    assert text[ranges[0][0] : ranges[0][1]] == text
 
 
 @pytest.mark.parametrize(
@@ -134,7 +125,6 @@ def test_whitespace_is_preserved():
 )
 def test_invalid_tokenizer_offsets(offsets):
     """Reject invalid, overlapping or unusable offsets."""
-
     tokenizer = FakeTokenizer(offsets=offsets)
 
     with pytest.raises(TokenizerContractError):
@@ -143,7 +133,6 @@ def test_invalid_tokenizer_offsets(offsets):
 
 def test_empty_document_rejected():
     """Reject whitespace-only input."""
-
     tokenizer = FakeTokenizer()
 
     with pytest.raises(EmptyDocumentError):
@@ -152,11 +141,6 @@ def test_empty_document_rejected():
 
 def test_zero_length_offsets_ignored():
     """Ignore zero-length offsets when valid tokens exist."""
+    tokenizer = FakeTokenizer(offsets=[(0, 0), (0, 1), (1, 2)])
 
-    tokenizer = FakeTokenizer(
-        offsets=[(0, 0), (0, 1), (1, 2)]
-    )
-
-    assert split_into_chunk_ranges(
-        "ab", tokenizer
-    ) == [(0, 2)]
+    assert split_into_chunk_ranges("ab", tokenizer) == [(0, 2)]

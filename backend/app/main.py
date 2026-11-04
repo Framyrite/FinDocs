@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 
 from app.api.health import router as health_router
-from app.core.config import Settings, get_settings
+from app.core.config import Settings
 from app.llm.adapter import LLMAdapter
 from app.llm.mock import MockLLM
 
@@ -12,8 +12,7 @@ def create_app(
     settings: Settings | None = None,
     llm_adapter: LLMAdapter | None = None,
 ) -> FastAPI:
-    """Create the application with an interchangeable LLM adapter."""
-    config = get_settings() if settings is None else settings
+    config = Settings() if settings is None else settings
     adapter = MockLLM() if llm_adapter is None else llm_adapter
 
     application = FastAPI(title=config.app_name, debug=config.debug)
