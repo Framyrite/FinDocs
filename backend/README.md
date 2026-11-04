@@ -1,151 +1,164 @@
-# Backend
 
-Backend part of FinDocs.
+# FinDocs Backend
 
-Use this directory for server-side code, API endpoints, business logic, database access, and backend-specific configuration.
+Серверная часть FinDocs на Python 3.12 и FastAPI.
 
+## Реализованные компоненты
 
-## Backend 0.2
+- `GET /health` — проверка доступности HTTP-приложения.
+- `Settings` — конфигурация через переменные окружения и `.env`.
+- `LLMAdapter` — интерфейс для подключения языковой модели.
+- `MockLLM` — тестовый адаптер без обращения к реальной LLM.
+- `app/processing/` — обработка TXT и разбиение текста на чанки.
 
-## Локальный запуск
+MockLLM не выполняет RAG и не генерирует настоящие ответы. Загрузка документов через HTTP, база данных и векторный поиск пока не реализованы.
 
-Требуется Python 3.12 и доступ к PyPI для первоначальной установки зависимостей.
-Все команды ниже выполняются в каталоге `backend`.
-В `requirements.txt` зафиксированы прямые и транзитивные зависимости,
-использованные при проверке. Линтеры в зависимости приложения не включены.
+## Требования
 
-Linux / macOS:
+- Python 3.12.
+- Доступ к PyPI для первоначальной установки зависимостей.
+- Токенизатор `multilingual-e5-small` для TXT-обработки и соответствующих тестов.
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-cp .env.example .env
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
+## Установка
 
-Windows PowerShell:
+Все команды выполняются из каталога `backend`.
 
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item .env.example .env
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-
-Копирование `.env.example` выполняется один раз. Если `.env` уже существует,
-сохраните его настройки и добавьте недостающие параметры вручную.
-При отсутствии `.env` используются значения по умолчанию.
-
-Остановка сервера: `Ctrl+C`. Для запуска без автоматической перезагрузки
-уберите `--reload`.
-
-Из корня существующего репозитория сервер также можно запустить командой
-`python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000`.
-Используйте Python из установленного виртуального окружения backend.
-
-## Проверка доступности
-
-После запуска откройте <http://127.0.0.1:8000/health> или выполните
-в другом терминале:
+### Linux / macOS
 
 ```bash
-curl -i http://127.0.0.1:8000/health
-```
-
-PowerShell:
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health
-```
-
-Ожидаются HTTP `200`, `Content-Type: application/json` и ответ:
-
-```json
-{"status":"ok"}
-```
-
-Описание API: <http://127.0.0.1:8000/docs>.
-Машинная спецификация: <http://127.0.0.1:8000/openapi.json>.
-`/health` подтверждает доступность HTTP-приложения.
-
-## Настройки
-
-| Переменная | Значение по умолчанию | Назначение |
-| --- | --- | --- |
-| `FINDOCS_APP_NAME` | `FinDocs Backend` | Название приложения в OpenAPI |
-| `FINDOCS_DEBUG` | `false` | Режим отладки FastAPI |
-
-Порядок приоритета: переменные окружения процесса → `backend/.env` →
-значения по умолчанию. Путь к `.env` определяется относительно `config.py`,
-поэтому настройки читаются и при запуске из корня репозитория.
-Посторонние параметры `.env` игнорируются. Пустое имя приложения и неверное
-значение `FINDOCS_DEBUG` вызывают ошибку валидации при запуске.
-Настройки читаются один раз на процесс; после изменения перезапустите сервер.
-Хост и порт задаются параметрами Uvicorn в команде запуска.
-
-## Ручная проверка LLM-адаптера
-
-Из каталога `backend` выполните в том же виртуальном окружении:
-
-```bash
-python -c "from app.main import app; print(app.state.llm_adapter.generate('Что такое FinDocs?', 'FinDocs работает с учебными материалами.'))"
-```
-
-Ожидаемый результат:
-
-```text
-[MOCK] Тестовый ответ. Реальная LLM не подключена.
-Вопрос: Что такое FinDocs?
-Контекст: FinDocs работает с учебными материалами.
-```
-
-Контракт: `LLMAdapter.generate(question: str, context: str) -> str`.
-`context` — уже подготовленный текст; пустая строка допустима.
-Пустой вопрос вызывает `ValueError`, аргумент другого типа — `TypeError`.
-Mock возвращает одинаковый результат для одинаковых входных данных.
-
-`create_app(llm_adapter=...)` принимает любую реализацию `LLMAdapter`.
-Зависимость выбирается в `main.py` и хранится в `app.state.llm_adapter`.
-Будущая бизнес-логика обращается к интерфейсу `LLMAdapter`; конкретная
-реализация подключается при создании приложения.
-
-## TXT Processing
-
-The backend includes a TXT processing module that converts UTF-8
-documents into text blocks and overlapping chunks.
-
-### Features
-
-- UTF-8 and UTF-8 BOM support.
-- Preservation of original whitespace and line breaks.
-- Validation of empty and incorrectly encoded documents.
-- Token-based chunking with 350 tokens per window and 50-token overlap.
-- Exact character offsets for each chunk.
-- Deterministic UUID5 identifiers for blocks and chunks.
-
-### Requirements
-
-- Python 3.12
-- `tokenizers==0.23.3`
-- The pinned `multilingual-e5-small` tokenizer file
-
-### Installation
-
-From the repository root:
-
-```bash
-cd backend
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-dev.txt
 ```
 
-### Download the tokenizer
+### Windows PowerShell
 
-The tokenizer file is not stored in Git.
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-dev.txt
+```
 
-From the `backend` directory:
+`requirements.txt` содержит зависимости приложения.
+`requirements-dev.txt` дополнительно устанавливает pytest, httpx и Ruff.
+
+В существующем окружении повторно создавать `.venv` не нужно.
+
+## Конфигурация
+
+При необходимости создайте `.env` на основе `.env.example`.
+
+Linux / macOS:
+
+```bash
+cp .env.example .env
+```
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Не перезаписывайте существующий `.env`, если в нём уже есть локальные настройки.
+
+| Переменная | По умолчанию | Назначение |
+| --- | --- | --- |
+| `FINDOCS_APP_NAME` | `FinDocs Backend` | Название приложения |
+| `FINDOCS_DEBUG` | `false` | Режим отладки FastAPI |
+
+Приоритет настроек:
+
+1. Переменные окружения процесса.
+2. `backend/.env`.
+3. Значения по умолчанию.
+
+Путь к `.env` определяется относительно `config.py`, поэтому запуск не зависит от текущей рабочей директории.
+
+Настройки валидируются через Pydantic. Пустое название приложения и некорректное значение `FINDOCS_DEBUG` вызывают ошибку валидации.
+
+Настройки не кешируются: каждый вызов `create_app()` без явных настроек создаёт новый экземпляр `Settings`. Уже запущенное приложение не перечитывает `.env` автоматически — после изменения настроек перезапустите сервер.
+
+## Запуск сервера
+
+Из каталога `backend`, с активированным виртуальным окружением:
+
+```bash
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Остановка сервера: `Ctrl+C`.
+
+При необходимости из корня репозитория:
+
+```bash
+python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+```
+
+Используйте Python из виртуального окружения `backend/.venv`.
+
+## Проверка HTTP API
+
+После запуска сервера откройте:
+
+- http://127.0.0.1:8000/health
+- http://127.0.0.1:8000/docs
+- http://127.0.0.1:8000/openapi.json
+
+Проверка через терминал:
+
+```bash
+curl -i http://127.0.0.1:8000/health
+```
+
+Ожидаются HTTP 200 и JSON:
+
+```json
+{"status":"ok"}
+```
+
+`/health` подтверждает доступность HTTP-приложения, а не готовность базы данных, RAG или реальной LLM.
+
+## LLM-адаптер
+
+Основной интерфейс:
+
+```python
+LLMAdapter.generate(question: str, context: str) -> str
+```
+
+`context` содержит заранее подготовленный текст. Пустой контекст допустим.
+
+- Пустой или пробельный вопрос вызывает `ValueError`.
+- Нестрочные аргументы вызывают `TypeError`.
+- `MockLLM` возвращает детерминированный тестовый ответ.
+
+Ручная проверка:
+
+```bash
+python -c "from app.main import app; print(app.state.llm_adapter.generate('Что такое FinDocs?', 'Тестовый контекст'))"
+```
+
+`create_app(settings=..., llm_adapter=...)` позволяет подменять конфигурацию и реализацию LLM при тестировании.
+
+## Обработка TXT
+
+Модуль `app/processing/` выполняет обработку TXT в памяти.
+
+Поддерживается:
+
+- UTF-8 и UTF-8 BOM.
+- Сохранение пробелов и переносов строк.
+- Проверка пустых документов и некорректной кодировки.
+- Разбиение по 350 токенов с перекрытием 50 токенов.
+- Точные символьные диапазоны чанков.
+- Детерминированные UUID5 для блоков и чанков.
+
+### Установка токенизатора
+
+Файл `tokenizer.json` не хранится в Git и не загружается автоматически при работе приложения.
+
+Из каталога `backend`:
 
 ```bash
 mkdir -p models/multilingual-e5-small
@@ -155,68 +168,81 @@ curl -fL --retry 3 \
   -o models/multilingual-e5-small/tokenizer.json
 ```
 
-Verify the SHA-256 checksum:
+Проверка SHA-256 в Linux / macOS:
 
 ```bash
 echo "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39  models/multilingual-e5-small/tokenizer.json" \
   | shasum -a 256 -c -
 ```
 
-Expected output:
+Ожидаемый результат:
 
 ```text
 models/multilingual-e5-small/tokenizer.json: OK
 ```
 
-The tokenizer directory can also be configured using
-`FINDOCS_TOKENIZER_DIR`.
+Используется `tokenizers==0.23.3`.
 
-The application does not automatically download the tokenizer.
+Альтернативное расположение токенизатора можно указать через `FINDOCS_TOKENIZER_DIR`.
 
-### Running tests
-
-From the `backend` directory:
-
-```bash
-python -m pytest -v tests/
-```
-
-The test suite covers TXT decoding, input validation,
-chunk boundaries, character offsets, deterministic processing,
-and tokenizer loading errors.
-
-### Usage example
+### Пример использования
 
 ```python
 from uuid import uuid4
-from app.processing import process_txt
 
-document_id = uuid4()
+from app.processing import process_txt
 
 result = process_txt(
     "Привет, FinDocs!".encode("utf-8"),
-    document_id,
+    uuid4(),
 )
 
 print(result.blocks)
 print(result.chunks)
 ```
 
-### Scope
+Модуль не сохраняет документы, не строит embeddings и не выполняет RAG.
 
-This module performs in-memory TXT processing only.
+## Автоматические проверки
 
-It does not implement document storage, HTTP endpoints,
-vector search, RAG, or LLM integration.
+Все команды выполняются из каталога `backend` с активированным виртуальным окружением.
 
-
-## Запуск автотестов (CI/QA)
-
-В проекте настроен совместный запуск Unit-тестов (`backend/tests/`) и независимых QA-проверок (`tests/` в корне). 
-
-Требуется: **Python 3.12**. Все команды выполняются из директории `backend`:
+Тесты базового backend и TXT:
 
 ```bash
-python -m pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests/ ../tests/ -q
+python -m pytest -q
 ```
+
+Полный набор тестов, включая QA-проверки из корневого каталога:
+
+```bash
+PYTHONPATH=.. python -m pytest tests/ ../tests/ -q
+```
+
+Проверка импортов, ошибок и стиля:
+
+```bash
+python -m ruff check .
+```
+
+Проверка форматирования:
+
+```bash
+python -m ruff format --check .
+```
+
+Проверка совместимости установленных зависимостей:
+
+```bash
+python -m pip check
+```
+
+GitHub Actions запускает совместный набор Unit- и QA-тестов при изменениях в pull request к `main`.
+
+## Интеграция с frontend
+
+Для локальной разработки с React/Vite предпочтительно использовать Vite dev proxy, направляющий API-запросы на FastAPI.
+
+Конкретная настройка proxy должна быть согласована с frontend-разработчиком и архитектором. На текущем этапе интеграция через браузер не подтверждена.
+
+Vite dev proxy предназначен для локальной разработки и не заменяет настройку сетевого взаимодействия при развёртывании приложения.
