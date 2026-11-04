@@ -54,6 +54,16 @@ function App() {
     return api.askQuestion({ question, document_ids: null });
   };
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Удалить документ?')) return;
+    try {
+      await api.deleteDocument(id);
+      setDocuments(prev => prev.filter(d => d.id !== id));
+    } catch (error) {
+      alert('Ошибка удаления');
+    }
+  };
+
   const filteredDocs = documents.filter(doc => 
     doc.filename.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -80,6 +90,7 @@ function App() {
             isLoading={isLoading}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
+            onDelete={handleDelete}
           />
         </>
       )}

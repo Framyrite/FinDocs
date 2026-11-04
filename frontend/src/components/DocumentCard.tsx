@@ -4,6 +4,7 @@ import type { Document } from '../types/api';
 
 interface DocumentCardProps {
   doc: Document;
+  onDelete: (id: string) => void;
 }
 
 const statusLabels: Record<Document['status'], string> = {
@@ -20,7 +21,7 @@ const statusColors: Record<Document['status'], string> = {
   error: '#d9534f',
 };
 
-export const DocumentCard: React.FC<DocumentCardProps> = ({ doc }) => {
+export const DocumentCard: React.FC<DocumentCardProps> = ({ doc, onDelete }) => {
   return (
     <div style={{
       border: '1px solid #ddd',
@@ -49,6 +50,20 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({ doc }) => {
       }}>
         {statusLabels[doc.status]}
       </div>
+      <button 
+        onClick={() => onDelete(doc.id)} 
+        style={{ 
+          color: 'red', 
+          border: '1px solid #d9534f', 
+          background: 'none', 
+          borderRadius: '4px',
+          padding: '4px 8px',
+          cursor: 'pointer',
+          fontSize: '12px'
+        }}
+      >
+        Удалить
+      </button>
     </div>
   );
 };

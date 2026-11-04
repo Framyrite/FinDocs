@@ -27,4 +27,10 @@ export const api = {
     
     throw new Error('Real API not implemented yet');
   },
+
+  async deleteDocument(id: string): Promise<void> {
+    if (USE_MOCK) return mockApi.deleteDocument(id);
+    // return request<void>(`/documents/${id}`, { method: 'DELETE' });
+    throw new Error('Real API not implemented yet');
+  },
 };

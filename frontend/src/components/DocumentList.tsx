@@ -8,6 +8,7 @@ interface DocumentListProps {
   isLoading: boolean;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  onDelete: (id: string) => void;
 }
 
 export const DocumentList: React.FC<DocumentListProps> = ({
@@ -15,6 +16,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
   isLoading,
   searchQuery,
   onSearchChange,
+  onDelete,
 }) => {
   if (isLoading) {
     return <div style={{ padding: '20px', textAlign: 'center' }}>Загрузка документов...</div>;
@@ -46,7 +48,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
       ) : (
         <div>
           {documents.map((doc) => (
-            <DocumentCard key={doc.id} doc={doc} />
+            <DocumentCard key={doc.id} doc={doc} onDelete={onDelete} />
           ))}
         </div>
       )}

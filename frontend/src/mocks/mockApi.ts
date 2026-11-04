@@ -29,6 +29,11 @@ export const mockApi = {
     return newDoc;
   },
 
+  async deleteDocument(id: string): Promise<void> {
+    await delay(300);
+    // В моке просто ничего не делаем, список обновится на фронте
+  },
+
   // Имитация POST /chat/ask
   async askQuestion(request: AskRequest): Promise<Answer> {
     await delay(1000);
