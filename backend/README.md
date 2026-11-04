@@ -208,3 +208,17 @@ This module performs in-memory TXT processing only.
 
 It does not implement document storage, HTTP endpoints,
 vector search, RAG, or LLM integration.
+
+
+## Запуск автотестов (CI/QA)
+
+В проекте настроен совместный запуск Unit-тестов (`backend/tests/`) и независимых QA-проверок (`tests/` в корне). 
+
+Требуется: **Python 3.12**. Все команды выполняются из директории `backend`:
+
+```bash
+# Установка зависимостей (включая тестовые)
+python -m pip install -r requirements.txt -r requirements-dev.txt
+
+# Запуск полного набора тестов
+python -m pytest tests/ ../tests/ -q
