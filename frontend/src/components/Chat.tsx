@@ -5,9 +5,10 @@ import { SourceCard } from './SourceCard';
 
 interface ChatProps {
   onAsk: (question: string) => Promise<Answer>;
+  hasReadyDocuments: boolean; // Новый пропс
 }
 
-export const Chat: React.FC<ChatProps> = ({ onAsk }) => {
+export const Chat: React.FC<ChatProps> = ({ onAsk, hasReadyDocuments }) => {
   const [question, setQuestion] = useState('');
   const [isWaiting, setIsWaiting] = useState(false);
   const [answer, setAnswer] = useState<Answer | null>(null);
@@ -39,7 +40,11 @@ export const Chat: React.FC<ChatProps> = ({ onAsk }) => {
           type="text"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Введите свой вопрос..."
+          placeholder={
+            hasReadyDocuments 
+              ? "Введите свой вопрос..." 
+              : "Сначала загрузите и дождитесь обработки документа"
+          }
           disabled={isWaiting}
           style={{
             flex: 1,
@@ -51,7 +56,7 @@ export const Chat: React.FC<ChatProps> = ({ onAsk }) => {
         />
         <button
           type="submit"
-          disabled={!question.trim() || isWaiting}
+          disabled={!question.trim() || isWaiting || !hasReadyDocuments}
           style={{
             padding: '10px 20px',
             backgroundColor: (!question.trim() || isWaiting) ? '#ccc' : '#0b5c6b',

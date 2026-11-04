@@ -55,6 +55,9 @@ function App() {
     doc.filename.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+    // Проверяем, есть ли хотя бы один готовый документ
+  const hasReadyDocuments = documents.some(doc => doc.status === 'ready');
+
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -70,7 +73,7 @@ function App() {
       />
 
       {/* Добавили чат внизу */}
-      <Chat onAsk={handleAskQuestion} />
+      <Chat onAsk={handleAskQuestion} hasReadyDocuments={hasReadyDocuments} />
     </div>
   );
 }

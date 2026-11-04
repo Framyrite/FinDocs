@@ -1,6 +1,6 @@
 // frontend/src/mocks/mockApi.ts
 import type { Document, AskRequest, Answer } from '../types/api';
-import { mockDocuments, mockAnswer } from './data';
+import { mockDocuments, mockAnswer, mockAnswerInsufficient } from './data';
 
 // Имитация задержки сети (чтобы видеть состояния загрузки)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -30,9 +30,17 @@ export const mockApi = {
   },
 
   // Имитация POST /chat/ask
-  async askQuestion(_request: AskRequest): Promise<Answer> {
+  async askQuestion(request: AskRequest): Promise<Answer> {
     await delay(1000);
-    // Для демонстрации всегда возвращаем один и тот же ответ
+    
+    // Простая логика для демонстрации:
+    // Если в вопросе есть слово "нет" или "недостаточно", возвращаем ответ об отсутствии инфы
+    const q = request.question.toLowerCase();
+    if (q.includes('нет') || q.includes('недостаточно')) {
+      return mockAnswerInsufficient;
+    }
+    
+    // В остальных случаях возвращаем полный ответ
     return mockAnswer;
-  }
+  },
 };

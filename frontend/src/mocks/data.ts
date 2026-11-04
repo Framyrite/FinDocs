@@ -51,3 +51,17 @@ export const mockAnswer: Answer = {
     },
   ],
 };
+
+// Ответ, когда информации недостаточно
+export const mockAnswerInsufficient: Answer = {
+  status: 'insufficient_info',
+  answer: 'В выбранных материалах не удалось найти достаточную информацию для ответа.',
+  sources: [],
+};
+
+// Ответ, когда произошла техническая ошибка (имитация)
+export const mockAnswerError: Answer = {
+  status: 'answered', // В контракте нет статуса error, ошибка ловится через HTTP
+  answer: '',
+  sources: [],
+};
