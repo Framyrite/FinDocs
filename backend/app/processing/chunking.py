@@ -14,7 +14,6 @@ def split_into_chunk_ranges(
     tokenizer: Tokenizer,
 ) -> list[tuple[int, int]]:
     """Return character ranges for overlapping token windows."""
-
     if not text.strip():
         raise EmptyDocumentError("TXT document is empty or contains only whitespace")
 

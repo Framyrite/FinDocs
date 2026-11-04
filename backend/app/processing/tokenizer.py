@@ -14,7 +14,6 @@ TOKENIZER_SHA256 = "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf
 
 def load_tokenizer() -> Tokenizer:
     """Load the local tokenizer after validating its version and SHA-256."""
-
     if tokenizers_version != TOKENIZER_VERSION:
         raise RuntimeError(f"Expected tokenizers=={TOKENIZER_VERSION}, got {tokenizers_version}")
 

@@ -142,7 +142,6 @@ def test_processing_rejects_invalid_input() -> None:
 
 def test_processing_uuid5_identifiers() -> None:
     """Verify deterministic UUID5 identifiers for blocks and chunks."""
-
     text = "Привет, FinDocs! 👋\r\n" * 100
     data = text.encode("utf-8")
 

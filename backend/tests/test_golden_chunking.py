@@ -15,7 +15,6 @@ DOCUMENT_ID = UUID("12345678-1234-5678-1234-567812345678")
 
 def test_synthetic_long_txt_golden() -> None:
     """Verify exact offsets produced by the pinned tokenizer."""
-
     fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
 
     text = fixture["text_unit"] * fixture["repeat"]
@@ -42,6 +41,7 @@ def test_synthetic_long_txt_golden() -> None:
     for chunk, (start, end) in zip(
         result.chunks,
         expected_ranges,
+        strict=True,
     ):
         assert chunk.start_char == start
         assert chunk.end_char == end
