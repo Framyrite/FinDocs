@@ -8,6 +8,7 @@ from .errors import (
 )
 from .models import Chunk, DocumentBlock, ProcessingResult
 from .txt import decode_txt
+from .processor import process_txt
 
 __all__ = [
     "DocumentBlock",
@@ -18,4 +19,5 @@ __all__ = [
     "EmptyDocumentError",
     "TokenizerContractError",
     "decode_txt",
+    "process_txt",
 ]
