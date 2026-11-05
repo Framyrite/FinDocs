@@ -31,31 +31,14 @@ function App() {
   const handleUpload = async (file: File) => {
     setIsUploading(true);
     try {
-      // 1. Отправляем файл (имитация)
-      const newDoc = await api.uploadDocument(file);
+      // 1. Отправляем файл (мок сам добавит его в хранилище)
+      await api.uploadDocument(file);
       
-      // 2. Добавляем в список
-      setDocuments(prev => [newDoc, ...prev]);
+      // 2. Заново запрашиваем список, чтобы получить актуальные данные
+      const data = await api.getDocuments();
+      setDocuments(data.items);
       
-      // 3. Через 1 секунду меняем статус на processing
-      setTimeout(() => {
-        setDocuments(prev => 
-          prev.map(d => 
-            d.id === newDoc.id ? { ...d, status: 'processing' as const } : d
-          )
-        );
-      }, 1000);
-
-      // Еще через 2 секунды (итого 3) меняем статус на ready
-      setTimeout(() => {
-        setDocuments(prev => 
-          prev.map(d => 
-            d.id === newDoc.id ? { ...d, status: 'ready' as const } : d
-          )
-        );
-      }, 3000);
-      
-    } catch {
+    } catch (error) {
       alert('Ошибка загрузки файла');
     } finally {
       setIsUploading(false);
