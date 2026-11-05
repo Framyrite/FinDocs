@@ -1,12 +1,19 @@
-"""Document scope selection for chat requests."""
+"""Document scope, retrieval and grounded chat answers."""
 
 from dataclasses import dataclass
 from uuid import UUID
 
+from app.chat.models import ChatResponse
+from app.chat.sources import build_sources
 from app.documents.models import Document, DocumentStatus
 from app.documents.repository import DocumentRepository
 from app.llm.adapter import LLMAdapter
 from app.processing.models import ProcessingResult
+from app.retrieval.lexical import LexicalRetriever
+
+INSUFFICIENT_INFO_ANSWER = (
+    "В выбранных материалах не удалось найти достаточную информацию для ответа."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,7 +36,7 @@ class ChatServiceError(Exception):
 
 
 class ChatService:
-    """Coordinate document selection, retrieval and answer generation."""
+    """Coordinate document scope, lexical search and the LLM adapter."""
 
     def __init__(
         self,
@@ -38,23 +45,28 @@ class ChatService:
     ) -> None:
         self._repository = repository
         self._llm_adapter = llm_adapter
+        self._retriever = LexicalRetriever()
 
     def select_documents(
         self,
         document_ids: list[UUID] | None,
     ) -> list[ReadyDocument]:
-        """Return stored results belonging to the requested ready documents."""
-
+        """Read persisted results for the requested ready documents."""
         if document_ids is None:
             documents = self._repository.list(status=DocumentStatus.READY)
 
-            selected = []
+            selected: list[ReadyDocument] = []
 
             for document in documents:
                 result = self._repository.get_result(document.id)
 
                 if result is not None:
-                    selected.append(ReadyDocument(document=document, result=result))
+                    selected.append(
+                        ReadyDocument(
+                            document=document,
+                            result=result,
+                        )
+                    )
 
             if not selected:
                 raise ChatServiceError(
@@ -109,6 +121,60 @@ class ChatService:
                     "Результат обработки документа недоступен.",
                 )
 
-            selected.append(ReadyDocument(document=document, result=result))
+            selected.append(
+                ReadyDocument(
+                    document=document,
+                    result=result,
+                )
+            )
 
         return selected
+
+    def ask(
+        self,
+        question: str,
+        document_ids: list[UUID] | None = None,
+    ) -> ChatResponse:
+        """Return citations and a mock answer, or an honest refusal."""
+        documents = self.select_documents(document_ids)
+
+        ranked_chunks = self._retriever.retrieve(
+            question,
+            documents,
+        )
+
+        sources = build_sources(
+            ranked_chunks,
+            question,
+        )
+
+        if not sources:
+            return ChatResponse(
+                status="insufficient_info",
+                answer=INSUFFICIENT_INFO_ANSWER,
+                sources=[],
+            )
+
+        context = "\n".join(source.quote for source in sources)
+
+        try:
+            answer = self._llm_adapter.generate(
+                question,
+                context,
+            )
+
+            if not isinstance(answer, str):
+                raise TypeError("LLM adapter must return a string")
+
+        except Exception as exc:
+            raise ChatServiceError(
+                503,
+                "llm_unavailable",
+                "Сервис генерации ответа временно недоступен.",
+            ) from exc
+
+        return ChatResponse(
+            status="answered",
+            answer=answer,
+            sources=sources,
+        )
