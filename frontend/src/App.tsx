@@ -1,5 +1,5 @@
 // frontend/src/App.tsx
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import type { Document, Answer } from './types/api';
 import { api } from './api';
 import { DocumentList } from './components/DocumentList';
@@ -8,6 +8,7 @@ import { Chat } from './components/Chat';
 import { Navbar } from './components/Navbar';
 import type { Tab } from './components/Navbar';
 import './App.css';
+import { usePolling } from './hooks/usePolling';
 
 function App() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -17,6 +18,7 @@ function App() {
   // null = все документы, массив = выбранные
   const [selectedDocIds, setSelectedDocIds] = useState<string[] | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('chat'); // По умолчанию открыт чат
+  const [pollingDocId, setPollingDocId] = useState<string | null>(null);
 
   useEffect(() => {
     // Загружаем документы при старте
@@ -30,26 +32,34 @@ function App() {
       });
   }, []);
 
+  const checkDocStatus = useCallback(async (id: string) => {
+    const doc = await api.getDocumentById(id);
+
+    // Обновляем документ в списке
+    setDocuments(prev => 
+      prev.map(d => d.id === id ? { ...d, ...doc } : d)
+    );
+
+    return doc.status;
+  }, []);
+
   const handleUpload = async (file: File) => {
     setIsUploading(true);
     try {
-      // 1. Отправляем файл (мок сам добавит его в хранилище)
-      await api.uploadDocument(file);
-      
-      // 2. Заново запрашиваем список, чтобы получить актуальные данные
+      const newDoc = await api.uploadDocument(file);
+
+      // Обновляем список
       const data = await api.getDocuments();
       setDocuments(data.items);
+
+      // Запускаем отслеживание статуса для этого документа
+      setPollingDocId(newDoc.id);
       
-    } catch (error) {
+    } catch {
       alert('Ошибка загрузки файла');
     } finally {
       setIsUploading(false);
     }
-  };
-
-  // Функция для отправки вопроса
-  const handleAskQuestion = async (question: string, docIds: string[] | null): Promise<Answer> => {
-    return api.askQuestion({ question, document_ids: docIds });
   };
 
   const handleDelete = async (id: string) => {
@@ -69,6 +79,23 @@ function App() {
       alert('Ошибка удаления');
     }
   };
+
+  // Функция для отправки вопроса
+  const handleAskQuestion = async (question: string, docIds: string[] | null): Promise<Answer> => {
+    return api.askQuestion({ question, document_ids: docIds });
+  };
+
+  // 4. Хуки, зависящие от функций
+  usePolling(
+    pollingDocId, 
+    checkDocStatus, 
+    (_id, status) => {
+      // Если статус конечный, сбрасываем polling
+      if (status === 'ready' || status === 'error') {
+        setPollingDocId(null);
+      }
+    }
+  );
 
   const filteredDocs = documents.filter(doc => 
     doc.filename.toLowerCase().includes(searchQuery.toLowerCase())

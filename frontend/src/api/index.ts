@@ -17,10 +17,7 @@ export const api = {
   // GET /documents/{id}
   async getDocumentById(id: string): Promise<Document> {
     if (USE_MOCK) {
-      const data = await mockApi.getDocuments();
-      const doc = data.items.find(d => d.id === id);
-      if (!doc) throw new Error('Документ не найден');
-      return doc;
+      return mockApi.getDocumentById(id);
     }
     return request<Document>(`/documents/${id}`);
   },

@@ -20,6 +20,25 @@ export const mockApi = {
     await delay(300);
     const doc = documentsStore.find(d => d.id === id);
     if (!doc) throw new Error('Документ не найден');
+
+    // Простая имитация: uploaded -> processing -> ready
+    let newStatus = doc.status;
+
+    if (doc.status === 'uploaded') {
+      newStatus = 'processing';
+    } else if (doc.status === 'processing') {
+      newStatus = 'ready';
+    }
+
+    if (newStatus !== doc.status) {
+      // Обновляем в хранилище
+      documentsStore = documentsStore.map(d => 
+        d.id === id ? { ...d, status: newStatus } : d
+      );
+      // Возвращаем обновленную версию
+      return { ...doc, status: newStatus };
+    }
+
     return { ...doc };
   },
 
