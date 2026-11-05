@@ -1,5 +1,6 @@
 """Application creation and module wiring."""
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -7,6 +8,9 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app.api.chat import chat_validation_error
+from app.api.chat import router as chat_router
+from app.api.documents import error_response
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
 from app.core.config import Settings
@@ -17,6 +21,8 @@ from app.documents.repository import (
 from app.documents.service import DocumentService
 from app.llm.adapter import LLMAdapter
 from app.llm.mock import MockLLM
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(
@@ -55,6 +61,7 @@ def create_app(
 
     application.state.settings = config
     application.include_router(documents_router)
+    application.include_router(chat_router)
     application.state.llm_adapter = adapter
     application.include_router(health_router)
 
@@ -63,7 +70,10 @@ def create_app(
         request: Request,
         exc: RequestValidationError,
     ) -> JSONResponse:
-        """Return validation errors in the shared API error format."""
+        """Keep document validation unchanged and use chat error codes."""
+        if request.url.path == "/chat/ask":
+            return chat_validation_error(exc)
+
         return JSONResponse(
             status_code=422,
             content={
@@ -72,6 +82,25 @@ def create_app(
                     "message": "Некорректные параметры запроса.",
                 }
             },
+        )
+
+    @application.exception_handler(Exception)
+    async def handle_unexpected_error(
+        request: Request,
+        exc: Exception,
+    ) -> JSONResponse:
+        """Do not expose internal details in unexpected API errors."""
+        logger.error(
+            "Unhandled error for %s %s",
+            request.method,
+            request.url.path,
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
+
+        return error_response(
+            500,
+            "internal_error",
+            "Внутренняя ошибка сервера.",
         )
 
     return application
