@@ -1,14 +1,18 @@
 // frontend/src/components/Chat.tsx
 import React, { useState } from 'react';
-import type { Answer } from '../types/api';
 import { SourceCard } from './SourceCard';
+import { SearchScopeSelector } from './SearchScopeSelector';
+import type { Document, Answer } from '../types/api';
 
 interface ChatProps {
-  onAsk: (question: string) => Promise<Answer>;
-  hasReadyDocuments: boolean; // Новый пропс
+  onAsk: (question: string, documentIds: string[] | null) => Promise<Answer>;
+  hasReadyDocuments: boolean;
+  documents: Document[];
+  selectedIds: string[] | null;
+  onSelectionChange: (ids: string[] | null) => void;
 }
 
-export const Chat: React.FC<ChatProps> = ({ onAsk, hasReadyDocuments }) => {
+export const Chat: React.FC<ChatProps> = ({ onAsk, hasReadyDocuments, documents, selectedIds, onSelectionChange }) => {
   const [question, setQuestion] = useState('');
   const [isWaiting, setIsWaiting] = useState(false);
   const [answer, setAnswer] = useState<Answer | null>(null);
@@ -21,7 +25,7 @@ export const Chat: React.FC<ChatProps> = ({ onAsk, hasReadyDocuments }) => {
     setAnswer(null);
 
     try {
-      const result = await onAsk(question);
+      const result = await onAsk(question, selectedIds);
       setAnswer(result);
       setQuestion(''); // Очищаем поле после ответа
     } catch {
@@ -33,7 +37,14 @@ export const Chat: React.FC<ChatProps> = ({ onAsk, hasReadyDocuments }) => {
 
   return (
     <div style={{ marginTop: '40px' }}>
-      <h2>Задать вопрос</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h2 style={{ margin: 0 }}>Задать вопрос</h2>
+        <SearchScopeSelector 
+          documents={documents}
+          selectedIds={selectedIds}
+          onChange={onSelectionChange}
+        />
+      </div>
       
       <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '8px' }}>
         <input

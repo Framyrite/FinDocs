@@ -14,6 +14,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  // null = все документы, массив = выбранные
+  const [selectedDocIds, setSelectedDocIds] = useState<string[] | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('chat'); // По умолчанию открыт чат
 
   useEffect(() => {
@@ -46,8 +48,8 @@ function App() {
   };
 
   // Функция для отправки вопроса
-  const handleAskQuestion = async (question: string): Promise<Answer> => {
-    return api.askQuestion({ question, document_ids: null });
+  const handleAskQuestion = async (question: string, docIds: string[] | null): Promise<Answer> => {
+    return api.askQuestion({ question, document_ids: docIds });
   };
 
   const handleDelete = async (id: string) => {
@@ -55,6 +57,14 @@ function App() {
     try {
       await api.deleteDocument(id);
       setDocuments(prev => prev.filter(d => d.id !== id));
+
+      // Если удаленный документ был выбран — убираем его из выбора
+      setSelectedDocIds(prev => {
+        if (prev === null) return null;
+        const filtered = prev.filter(item => item !== id);
+        return filtered.length === 0 ? null : filtered;
+      });
+
     } catch {
       alert('Ошибка удаления');
     }
@@ -93,7 +103,13 @@ function App() {
 
       {/* Вкладка Чат */}
       {activeTab === 'chat' && (
-        <Chat onAsk={handleAskQuestion} hasReadyDocuments={hasReadyDocuments} />
+      <Chat 
+        onAsk={handleAskQuestion} 
+        hasReadyDocuments={hasReadyDocuments} 
+        documents={documents}
+        selectedIds={selectedDocIds}
+        onSelectionChange={setSelectedDocIds}
+      />
       )}
     </div>
   );
