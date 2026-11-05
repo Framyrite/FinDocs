@@ -5,7 +5,9 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+ENV_FILE = BACKEND_DIR / ".env"
+DEFAULT_DATA_DIR = BACKEND_DIR / "data"
 
 
 class Settings(BaseSettings):
@@ -20,3 +22,7 @@ class Settings(BaseSettings):
 
     app_name: str = Field(default="FinDocs Backend", min_length=1)
     debug: bool = False
+
+    data_dir: Path = DEFAULT_DATA_DIR
+    max_txt_size_mb: int = Field(default=10, ge=1)
+    max_documents: int = Field(default=100, ge=1)
