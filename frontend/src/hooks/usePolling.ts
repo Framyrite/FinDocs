@@ -2,53 +2,69 @@
 import { useEffect, useRef } from 'react';
 
 export function usePolling(
-  documentId: string | null,
+  documentIds: string[],
   checkStatus: (id: string) => Promise<'processing' | 'ready' | 'error' | 'uploaded'>,
   onStatusChange: (id: string, status: string) => void,
+  onError: (id: string) => void,
+  pollingErrors: Record<string, boolean>, // <-- Добавили
   intervalMs: number = 2000
 ) {
-  const timerRef = useRef<number | null>(null);
-  const isPollingRef = useRef(false);
-  
-  // Сохраняем актуальные функции в ref, чтобы useEffect не зависел от них
+  const timersRef = useRef<Record<string, number>>({});
+  const isPollingRef = useRef<Record<string, boolean>>({});
+
   const checkStatusRef = useRef(checkStatus);
   const onStatusChangeRef = useRef(onStatusChange);
+  const onErrorRef = useRef(onError);
 
   useEffect(() => {
     checkStatusRef.current = checkStatus;
     onStatusChangeRef.current = onStatusChange;
+    onErrorRef.current = onError;
   });
 
   useEffect(() => {
-    if (!documentId) return;
-
-    isPollingRef.current = true;
-
-    const poll = async () => {
-      if (!isPollingRef.current) return;
-
-      try {
-        const status = await checkStatusRef.current(documentId);
-
-        if (status === 'ready' || status === 'error') {
-          isPollingRef.current = false;
-          if (timerRef.current) clearInterval(timerRef.current);
-        }
-        onStatusChangeRef.current(documentId, status);
-        
-      } catch (e) {
-        console.error('[HOOK] Ошибка polling:', e);
-        isPollingRef.current = false;
-        if (timerRef.current) clearInterval(timerRef.current);
+    // Очищаем таймеры для удаленных документов
+    Object.keys(timersRef.current).forEach(id => {
+      if (!documentIds.includes(id)) {
+        clearTimeout(timersRef.current[id]);
+        delete timersRef.current[id];
+        isPollingRef.current[id] = false;
       }
-    };
+    });
 
-    poll();
-    timerRef.current = window.setInterval(poll, intervalMs);
+    documentIds.forEach(id => {
+      // Если уже опрашивается или есть ошибка polling — пропускаем
+      if (isPollingRef.current[id] || (pollingErrors && pollingErrors[id])) return; 
+      
+      isPollingRef.current[id] = true;
+
+      const poll = async () => {
+        if (!isPollingRef.current[id]) return;
+
+        try {
+          const status = await checkStatusRef.current(id);
+          
+          if (status === 'ready' || status === 'error') {
+            isPollingRef.current[id] = false;
+            delete timersRef.current[id];
+          } else {
+            onStatusChangeRef.current(id, status);
+            timersRef.current[id] = window.setTimeout(poll, intervalMs);
+          }
+        } catch (e) {
+          isPollingRef.current[id] = false;
+          delete timersRef.current[id];
+          onErrorRef.current(id); 
+        }
+      };
+
+      poll();
+    });
 
     return () => {
-      isPollingRef.current = false;
-      if (timerRef.current) clearInterval(timerRef.current);
+      Object.values(timersRef.current).forEach(clearTimeout);
+      timersRef.current = {};
+      isPollingRef.current = {};
     };
-  }, [documentId, intervalMs]); // <-- Убрали checkStatus и onStatusChange
+  }, [documentIds, intervalMs, pollingErrors]); // pollingErrors в зависимостях
 }

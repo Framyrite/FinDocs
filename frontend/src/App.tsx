@@ -1,5 +1,5 @@
 // frontend/src/App.tsx
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import type { Document, Answer } from './types/api';
 import { api } from './api';
 import { DocumentList } from './components/DocumentList';
@@ -18,7 +18,9 @@ function App() {
   // null = все документы, массив = выбранные
   const [selectedDocIds, setSelectedDocIds] = useState<string[] | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('chat'); // По умолчанию открыт чат
-  const [pollingDocId, setPollingDocId] = useState<string | null>(null);
+  
+  // Состояние для ошибок polling (сетевая ошибка)
+  const [pollingErrors, setPollingErrors] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     // Загружаем документы при старте
@@ -27,10 +29,17 @@ function App() {
       setIsLoading(false);
     })
     .catch(() => {
-        alert('Не удалось загрузить список документов');
-        setIsLoading(false);
-      });
+      alert('Не удалось загрузить список документов');
+      setIsLoading(false);
+    });
   }, []);
+
+  // Вычисляем ID документов, которые нужно опрашивать (uploaded или processing)
+  const pollingIds = useMemo(() => {
+    return documents
+      .filter(d => d.status === 'uploaded' || d.status === 'processing')
+      .map(d => d.id);
+  }, [documents]);
 
   const checkDocStatus = useCallback(async (id: string) => {
     const doc = await api.getDocumentById(id);
@@ -39,9 +48,30 @@ function App() {
     setDocuments(prev => 
       prev.map(d => d.id === id ? { ...d, ...doc } : d)
     );
+    
+    // Успешный запрос — сбрасываем ошибку polling для этого документа
+    setPollingErrors(prev => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
 
     return doc.status;
   }, []);
+
+  const handlePollingError = useCallback((id: string) => {
+    setPollingErrors(prev => ({ ...prev, [id]: true }));
+  }, []);
+
+  const handleRetryPolling = (id: string) => {
+    // Убираем ошибку, чтобы usePolling снова запустил опрос для этого ID
+    setPollingErrors(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
 
   const handleUpload = async (file: File) => {
     setIsUploading(true);
@@ -51,9 +81,9 @@ function App() {
       // Обновляем список
       const data = await api.getDocuments();
       setDocuments(data.items);
-
-      // Запускаем отслеживание статуса для этого документа
-      setPollingDocId(newDoc.id);
+      
+      // Polling запустится автоматически, так как новый документ попадет в pollingIds
+      console.log('Загружен новый документ:', newDoc);
       
     } catch {
       alert('Ошибка загрузки файла');
@@ -75,6 +105,13 @@ function App() {
         return filtered.length === 0 ? null : filtered;
       });
 
+      // Убираем ошибку polling для удаленного документа
+      setPollingErrors(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+
     } catch {
       alert('Ошибка удаления');
     }
@@ -85,16 +122,13 @@ function App() {
     return api.askQuestion({ question, document_ids: docIds });
   };
 
-  // 4. Хуки, зависящие от функций
+  // Хук для отслеживания статусов
   usePolling(
-    pollingDocId, 
+    pollingIds, 
     checkDocStatus, 
-    (_id, status) => {
-      // Если статус конечный, сбрасываем polling
-      if (status === 'ready' || status === 'error') {
-        setPollingDocId(null);
-      }
-    }
+    () => {}, // onStatusChange
+    handlePollingError,
+    pollingErrors
   );
 
   const filteredDocs = documents.filter(doc => 
@@ -124,19 +158,21 @@ function App() {
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             onDelete={handleDelete}
+            pollingErrors={pollingErrors}
+            onRetryPolling={handleRetryPolling}
           />
         </>
       )}
 
       {/* Вкладка Чат */}
       {activeTab === 'chat' && (
-      <Chat 
-        onAsk={handleAskQuestion} 
-        hasReadyDocuments={hasReadyDocuments} 
-        documents={documents}
-        selectedIds={selectedDocIds}
-        onSelectionChange={setSelectedDocIds}
-      />
+        <Chat 
+          onAsk={handleAskQuestion} 
+          hasReadyDocuments={hasReadyDocuments} 
+          documents={documents}
+          selectedIds={selectedDocIds}
+          onSelectionChange={setSelectedDocIds}
+        />
       )}
     </div>
   );

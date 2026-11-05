@@ -9,6 +9,8 @@ interface DocumentListProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onDelete: (id: string) => void;
+  pollingErrors: Record<string, boolean>;
+  onRetryPolling: (id: string) => void;
 }
 
 export const DocumentList: React.FC<DocumentListProps> = ({
@@ -17,6 +19,8 @@ export const DocumentList: React.FC<DocumentListProps> = ({
   searchQuery,
   onSearchChange,
   onDelete,
+  pollingErrors,
+  onRetryPolling,
 }) => {
   if (isLoading) {
     return <div style={{ padding: '20px', textAlign: 'center' }}>Загрузка документов...</div>;
@@ -48,7 +52,13 @@ export const DocumentList: React.FC<DocumentListProps> = ({
       ) : (
         <div>
           {documents.map((doc) => (
-            <DocumentCard key={doc.id} doc={doc} onDelete={onDelete} />
+            <DocumentCard 
+              key={doc.id} 
+              doc={doc} 
+              onDelete={onDelete} 
+              hasPollingError={!!pollingErrors[doc.id]}
+              onRetryPolling={onRetryPolling} 
+            />
           ))}
         </div>
       )}
