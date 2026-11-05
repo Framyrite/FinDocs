@@ -18,10 +18,10 @@ DOCUMENT_ID = UUID("12345678-1234-5678-1234-567812345678")
     ("data", "expected"),
     [
         (b"Hello", "Hello"),
-        ("Привет!".encode("utf-8"), "Привет!"),
+        ("Привет!".encode(), "Привет!"),
         (b"\xef\xbb\xbfHello", "Hello"),
         (b"Line 1\r\nLine 2\n", "Line 1\r\nLine 2\n"),
-        ("Текст 👋📄".encode("utf-8"), "Текст 👋📄"),
+        ("Текст 👋📄".encode(), "Текст 👋📄"),
     ],
 )
 def test_decode_valid_txt(data: bytes, expected: str) -> None:
@@ -35,7 +35,7 @@ def test_decode_valid_txt(data: bytes, expected: str) -> None:
         b"   ",
         b"\n\r\n\t",
         b"\xef\xbb\xbf",
-        " \n\t ".encode("utf-8"),
+        b" \n\t ",
     ],
 )
 def test_decode_empty_txt(data: bytes) -> None:

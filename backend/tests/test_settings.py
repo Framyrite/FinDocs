@@ -106,3 +106,57 @@ def test_create_app_respects_explicit_settings(monkeypatch: pytest.MonkeyPatch) 
 
     assert application.title == "Explicit settings"
     assert application.debug is True
+
+
+def test_document_settings_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Use the backend data directory and documented document limits."""
+    for name in (
+        "FINDOCS_DATA_DIR",
+        "FINDOCS_MAX_TXT_SIZE_MB",
+        "FINDOCS_MAX_DOCUMENTS",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.data_dir == Path(__file__).resolve().parents[1] / "data"
+    assert settings.max_txt_size_mb == 10
+    assert settings.max_documents == 100
+
+
+def test_document_settings_from_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Allow overriding the storage directory and document limits."""
+    data_dir = tmp_path / "custom-data"
+
+    monkeypatch.setenv("FINDOCS_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("FINDOCS_MAX_TXT_SIZE_MB", "5")
+    monkeypatch.setenv("FINDOCS_MAX_DOCUMENTS", "20")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.data_dir == data_dir
+    assert settings.max_txt_size_mb == 5
+    assert settings.max_documents == 20
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("FINDOCS_MAX_TXT_SIZE_MB", "0"),
+        ("FINDOCS_MAX_DOCUMENTS", "0"),
+        ("FINDOCS_MAX_DOCUMENTS", "not-a-number"),
+    ],
+)
+def test_document_settings_reject_invalid_limits(
+    name: str,
+    value: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject zero, negative, and nonnumeric document limits."""
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
