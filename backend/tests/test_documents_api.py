@@ -202,7 +202,7 @@ def test_delete_releases_document_capacity(client: TestClient) -> None:
 
 def test_upload_preserves_original_bom_bytes(client: TestClient) -> None:
     """Store the original UTF-8 BOM without modifying the uploaded bytes."""
-    data = b"\xef\xbb\xbf" + "Привет!".encode("utf-8")
+    data = b"\xef\xbb\xbf" + "Привет!".encode()
 
     response = upload(client, "bom.txt", data)
     assert response.status_code == 202

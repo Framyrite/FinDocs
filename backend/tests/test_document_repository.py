@@ -34,7 +34,7 @@ def make_document(
 def test_create_saves_original_and_metadata(tmp_path: Path) -> None:
     """Save original bytes unchanged alongside valid JSON metadata."""
     repository = LocalFileDocumentRepository(tmp_path)
-    data = "Привет, FinDocs! 👋".encode("utf-8")
+    data = "Привет, FinDocs! 👋".encode()
     document = make_document(data)
 
     repository.create(document, data)
@@ -89,7 +89,7 @@ def test_create_rejects_incorrect_size(tmp_path: Path) -> None:
 def test_get_restores_document_after_repository_restart(tmp_path: Path) -> None:
     """Restore persisted metadata using a new repository instance."""
     repository = LocalFileDocumentRepository(tmp_path)
-    data = "Привет, FinDocs!".encode("utf-8")
+    data = "Привет, FinDocs!".encode()
     document = make_document(data)
 
     repository.create(document, data)

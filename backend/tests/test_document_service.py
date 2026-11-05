@@ -29,7 +29,7 @@ def test_service_processes_document_successfully(tmp_path: Path) -> None:
     repository = LocalFileDocumentRepository(tmp_path)
     service = DocumentService(repository)
 
-    data = "Привет, FinDocs! 👋".encode("utf-8")
+    data = "Привет, FinDocs! 👋".encode()
     document = make_document(data)
     repository.create(document, data)
 
