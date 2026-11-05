@@ -309,3 +309,35 @@ def test_adapter_failure_is_not_insufficient_info(
 
     assert error.value.status_code == 503
     assert error.value.code == "llm_unavailable"
+
+
+class BlankLLM(LLMAdapter):
+    """Return a blank answer to test adapter validation."""
+
+    def __init__(self, answer: str) -> None:
+        self.answer = answer
+
+    def generate(self, question: str, context: str) -> str:
+        return self.answer
+
+
+@pytest.mark.parametrize("blank_answer", ["", "   ", "\n\t"])
+def test_blank_llm_answer_returns_503(
+    tmp_path: Path,
+    blank_answer: str,
+) -> None:
+    repository, document, _ = make_ready_repository(tmp_path)
+
+    service = ChatService(
+        repository,
+        BlankLLM(blank_answer),
+    )
+
+    with pytest.raises(ChatServiceError) as error:
+        service.ask(
+            "кредит процент",
+            [document.id],
+        )
+
+    assert error.value.status_code == 503
+    assert error.value.code == "llm_unavailable"

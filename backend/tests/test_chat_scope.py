@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.chat.models import ChatRequest
+from app.chat.models import ChatRequest, ChatResponse
 from app.chat.service import ChatService, ChatServiceError
 from app.documents.models import Document
 from app.documents.repository import LocalFileDocumentRepository
@@ -138,3 +138,14 @@ def test_no_ready_documents_returns_409(tmp_path: Path) -> None:
 
     assert error.value.status_code == 409
     assert error.value.code == "no_ready_documents"
+
+
+def test_chat_response_accepts_partial_status() -> None:
+    response = ChatResponse(
+        status="partial",
+        answer="Частичный ответ.",
+        sources=[],
+    )
+
+    assert response.status == "partial"
+    assert response.model_dump()["status"] == "partial"

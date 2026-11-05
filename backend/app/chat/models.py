@@ -36,6 +36,6 @@ class Source(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    status: Literal["answered", "insufficient_info"]
+    status: Literal["answered", "partial", "insufficient_info"]
     answer: str
     sources: list[Source]

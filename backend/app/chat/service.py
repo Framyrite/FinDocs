@@ -166,6 +166,9 @@ class ChatService:
             if not isinstance(answer, str):
                 raise TypeError("LLM adapter must return a string")
 
+            if not answer.strip():
+                raise ValueError("LLM adapter returned an empty answer")
+
         except Exception as exc:
             raise ChatServiceError(
                 503,
