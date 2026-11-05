@@ -1,7 +1,7 @@
 // frontend/src/api/client.ts
-import type { ApiErrorResponse } from '../types/api';
+import type { ApiErrorResponse } from "../types/api";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 /**
  * Универсальная функция для запросов к API.
@@ -9,10 +9,10 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
  */
 export async function request<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
-  
+
   const response = await fetch(url, {
     ...options,
     headers: {
