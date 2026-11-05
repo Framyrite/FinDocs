@@ -24,15 +24,23 @@ describe('Chat', () => {
 
     const handleAsk = vi.fn().mockResolvedValue(mockAnswer);
     
-    render(<Chat onAsk={handleAsk} hasReadyDocuments={true} />);
-    
+    render(
+      <Chat 
+        onAsk={handleAsk} 
+        hasReadyDocuments={true} 
+        documents={[]}
+        selectedIds={null}
+        onSelectionChange={() => {}}
+      />
+    );
+
     const input = screen.getByPlaceholderText('Введите свой вопрос...');
     const button = screen.getByText('Отправить');
     
     await userEvent.type(input, 'Что такое облигация?');
     await userEvent.click(button);
     
-    expect(handleAsk).toHaveBeenCalledWith('Что такое облигация?');
+    expect(handleAsk).toHaveBeenCalledWith('Что такое облигация?', null);
     
     // Ждем, пока ответ появится на экране
     const answerText = await screen.findByText('Тестовый ответ', { exact: false });
@@ -51,8 +59,16 @@ describe('Chat', () => {
     };
 
     const handleAsk = vi.fn().mockResolvedValue(mockAnswer);
-    
-    render(<Chat onAsk={handleAsk} hasReadyDocuments={true} />);
+
+    render(
+      <Chat 
+        onAsk={handleAsk} 
+        hasReadyDocuments={true} 
+        documents={[]}
+        selectedIds={null}
+        onSelectionChange={() => {}}
+      />
+    );
     
     const input = screen.getByPlaceholderText('Введите свой вопрос...');
     await userEvent.type(input, 'Тестовый вопрос');
@@ -63,7 +79,17 @@ describe('Chat', () => {
   });
 
   it('блокирует поле ввода, если нет готовых документов', () => {
-    render(<Chat onAsk={() => Promise.resolve({} as Answer)} hasReadyDocuments={false} />);
+    const handleAsk = vi.fn();
+
+    render(
+      <Chat 
+        onAsk={handleAsk} 
+        hasReadyDocuments={false} 
+        documents={[]}
+        selectedIds={null}
+        onSelectionChange={() => {}}
+      />
+    );
     
     const input = screen.getByPlaceholderText('Сначала загрузите и дождитесь обработки документа');
     expect(input).toBeDisabled();
