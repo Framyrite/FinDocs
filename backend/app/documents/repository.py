@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import shutil
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile, mkdtemp
@@ -17,6 +17,10 @@ from app.processing.models import Chunk, DocumentBlock, ProcessingResult
 from .models import Document, DocumentStatus
 
 logger = logging.getLogger(__name__)
+
+RESULT_UNAVAILABLE_MESSAGE = (
+    "Результат обработки отсутствует или повреждён. Загрузите файл ещё раз."
+)
 
 
 class DocumentRepository(Protocol):
@@ -201,7 +205,7 @@ class LocalFileDocumentRepository:
                 if error_message is not None and not isinstance(error_message, str):
                     raise TypeError("Invalid document error message")
 
-                return Document(
+                document = Document(
                     id=UUID(metadata["id"]),
                     filename=filename,
                     size_bytes=size_bytes,
@@ -211,6 +215,16 @@ class LocalFileDocumentRepository:
                     error_code=error_code,
                     error_message=error_message,
                 )
+
+                if document.status == DocumentStatus.READY and self.get_result(document_id) is None:
+                    return replace(
+                        document,
+                        status=DocumentStatus.ERROR,
+                        error_code="processing_failed",
+                        error_message=RESULT_UNAVAILABLE_MESSAGE,
+                    )
+
+                return document
 
             except FileNotFoundError:
                 return None
@@ -345,6 +359,40 @@ class LocalFileDocumentRepository:
 
             return True
 
+    def _mark_result_unavailable(self, document_id: UUID) -> None:
+        """Persist an error if a ready document has no usable result."""
+        with self._lock:
+            metadata_path = self._document_dir(document_id) / "meta.json"
+
+            try:
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+
+                if (
+                    not isinstance(metadata, dict)
+                    or metadata.get("id") != str(document_id)
+                    or metadata.get("status") != DocumentStatus.READY.value
+                ):
+                    return
+
+                metadata["status"] = DocumentStatus.ERROR.value
+                metadata["error_code"] = "processing_failed"
+                metadata["error_message"] = RESULT_UNAVAILABLE_MESSAGE
+
+                self._atomic_write(
+                    metadata_path,
+                    json.dumps(
+                        metadata,
+                        ensure_ascii=False,
+                        indent=2,
+                    ).encode(),
+                )
+
+            except (OSError, ValueError, TypeError):
+                logger.exception(
+                    "Could not update status for document %s",
+                    document_id,
+                )
+
     def get_result(self, document_id: UUID) -> ProcessingResult | None:
         """Restore typed processing results, handling damaged JSON."""
         with self._lock:
@@ -403,6 +451,7 @@ class LocalFileDocumentRepository:
                 )
 
             except FileNotFoundError:
+                self._mark_result_unavailable(document_id)
                 return None
 
             except (OSError, ValueError, TypeError, KeyError):
@@ -410,6 +459,7 @@ class LocalFileDocumentRepository:
                     "Cannot read processing result for document %s",
                     document_id,
                 )
+                self._mark_result_unavailable(document_id)
                 return None
 
     def fail(self, document_id: UUID, code: str, message: str) -> bool:
@@ -478,6 +528,11 @@ class LocalFileDocumentRepository:
 
                     if document is None:
                         # Keep damaged metadata for later investigation.
+                        continue
+
+                    if document.status == DocumentStatus.READY:
+                        if self.get_result(document_id) is None:
+                            self._mark_result_unavailable(document_id)
                         continue
 
                     if document.status not in (

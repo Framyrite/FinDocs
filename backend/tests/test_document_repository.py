@@ -667,7 +667,8 @@ def test_corrupted_result_json_does_not_break_repository(
 
     saved = restarted.get(document.id)
     assert saved is not None
-    assert saved.status == DocumentStatus.READY
+    assert saved.status == DocumentStatus.ERROR
+    assert saved.error_code == "processing_failed"
 
     assert result_path.is_file()
 
@@ -775,3 +776,38 @@ def test_result_json_roundtrip_preserves_unicode_and_uuids(
     assert isinstance(restored.document_id, UUID)
     assert isinstance(restored.blocks[0].id, UUID)
     assert isinstance(restored.chunks[0].block_id, UUID)
+
+
+def test_missing_result_is_recovered_as_error(tmp_path: Path) -> None:
+    """A ready document without result.json must become an error."""
+    repository = LocalFileDocumentRepository(tmp_path)
+
+    document = make_document(b"hello")
+    repository.create(document, b"hello")
+
+    assert repository.mark_processing(document.id)
+
+    result = ProcessingResult(
+        document_id=document.id,
+        blocks=[],
+        chunks=[],
+    )
+    assert repository.complete(document.id, result)
+
+    document_dir = tmp_path / "documents" / str(document.id)
+    (document_dir / "result.json").unlink()
+
+    restarted = LocalFileDocumentRepository(tmp_path)
+    restarted.recover_incomplete()
+
+    metadata = json.loads((document_dir / "meta.json").read_text(encoding="utf-8"))
+
+    assert metadata["status"] == "error"
+    assert metadata["error_code"] == "processing_failed"
+
+    saved = restarted.get(document.id)
+    assert saved is not None
+    assert saved.status == DocumentStatus.ERROR
+    assert restarted.get_result(document.id) is None
+
+    assert restarted.read_original(document.id) == b"hello"

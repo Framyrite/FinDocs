@@ -1,5 +1,6 @@
 """Integration tests for the document library HTTP API."""
 
+import json
 from collections.abc import Iterator
 from pathlib import Path
 from uuid import UUID
@@ -349,29 +350,47 @@ def test_corrupted_metadata_does_not_break_http_api(
     assert not metadata_path.parent.exists()
 
 
-def test_corrupted_result_does_not_break_http_api(
+@pytest.mark.parametrize("damage", ["corrupt", "missing"])
+def test_unavailable_result_changes_ready_document_to_error(
     client: TestClient,
     tmp_path: Path,
+    damage: str,
 ) -> None:
-    """Handle damaged processing results without crashing the API."""
+    """Detect missing or corrupted results through HTTP without prior result reads."""
     response = upload(client, "result.txt", b"Hello")
     assert response.status_code == 202
 
     document_id = response.json()["id"]
-    result_path = tmp_path / "documents" / document_id / "result.json"
+    document_dir = tmp_path / "documents" / document_id
+    result_path = document_dir / "result.json"
+    metadata_path = document_dir / "meta.json"
 
     assert result_path.is_file()
-    result_path.write_text("{invalid json", encoding="utf-8")
 
-    repository = client.app.state.document_repository
-    assert repository.get_result(UUID(document_id)) is None
+    if damage == "corrupt":
+        result_path.write_text("{invalid json", encoding="utf-8")
+    else:
+        result_path.unlink()
 
     detail = client.get(f"/documents/{document_id}")
+
     assert detail.status_code == 200
-    assert detail.json()["status"] == "ready"
+    assert detail.json()["status"] == "error"
+    assert detail.json()["error_code"] == "processing_failed"
 
-    listing = client.get("/documents")
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+
+    assert metadata["status"] == "error"
+    assert metadata["error_code"] == "processing_failed"
+
+    listing = client.get("/documents", params={"status": "ready"})
     assert listing.status_code == 200
-    assert listing.json()["total"] == 1
+    assert listing.json()["total"] == 0
 
-    assert result_path.is_file()
+    errors = client.get("/documents", params={"status": "error"})
+    assert errors.json()["total"] == 1
+
+    assert (document_dir / "original.bin").read_bytes() == b"Hello"
+
+    if damage == "corrupt":
+        assert result_path.is_file()
