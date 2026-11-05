@@ -6,7 +6,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Barrier
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -459,7 +459,7 @@ def test_recover_incomplete_documents(tmp_path: Path) -> None:
             document,
             status=DocumentStatus.ERROR,
             error_code="processing_failed",
-            error_message="Processing interrupted by server restart",
+            error_message=("Обработка была прервана перезапуском сервера. Загрузите файл ещё раз."),
         )
 
     assert restarted.read_original(uploaded.id) == b"uploaded"
@@ -602,3 +602,176 @@ def test_concurrent_create_respects_document_limit(tmp_path: Path) -> None:
 
     document_directories = list((tmp_path / "documents").iterdir())
     assert len(document_directories) == 1
+
+
+def test_corrupted_metadata_does_not_break_recovery_or_capacity(
+    tmp_path: Path,
+) -> None:
+    """Skip damaged metadata without losing capacity accounting."""
+    repository = LocalFileDocumentRepository(tmp_path, max_documents=2)
+
+    damaged = make_document(b"damaged")
+    healthy = make_document(b"healthy")
+
+    repository.create(damaged, b"damaged")
+    repository.create(healthy, b"healthy")
+
+    metadata_path = tmp_path / "documents" / str(damaged.id) / "meta.json"
+    metadata_path.write_text("{broken json", encoding="utf-8")
+
+    restarted = LocalFileDocumentRepository(tmp_path, max_documents=2)
+    restarted.recover_incomplete()
+
+    assert restarted.get(damaged.id) is None
+    assert metadata_path.is_file()
+
+    saved = restarted.get(healthy.id)
+    assert saved is not None
+    assert saved.status == DocumentStatus.ERROR
+    assert saved.error_code == "processing_failed"
+
+    assert len(restarted.list()) == 1
+
+    extra = make_document(b"extra")
+
+    with pytest.raises(DocumentLimitExceededError):
+        restarted.create(extra, b"extra")
+
+
+def test_corrupted_result_json_does_not_break_repository(
+    tmp_path: Path,
+) -> None:
+    """Return None for damaged results while preserving document metadata."""
+    repository = LocalFileDocumentRepository(tmp_path)
+
+    document = make_document(b"hello")
+    repository.create(document, b"hello")
+
+    assert repository.mark_processing(document.id)
+
+    result = ProcessingResult(
+        document_id=document.id,
+        blocks=[],
+        chunks=[],
+    )
+
+    assert repository.complete(document.id, result)
+
+    result_path = tmp_path / "documents" / str(document.id) / "result.json"
+    result_path.write_text("{broken result", encoding="utf-8")
+
+    restarted = LocalFileDocumentRepository(tmp_path)
+    restarted.recover_incomplete()
+
+    assert restarted.get_result(document.id) is None
+
+    saved = restarted.get(document.id)
+    assert saved is not None
+    assert saved.status == DocumentStatus.READY
+
+    assert result_path.is_file()
+
+
+def test_recovery_continues_after_metadata_write_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recover other documents even when one metadata update fails."""
+    repository = LocalFileDocumentRepository(tmp_path)
+
+    broken = make_document(b"broken")
+    healthy = make_document(b"healthy")
+
+    repository.create(broken, b"broken")
+    repository.create(healthy, b"healthy")
+
+    assert repository.mark_processing(broken.id)
+    assert repository.mark_processing(healthy.id)
+
+    restarted = LocalFileDocumentRepository(tmp_path)
+    original_write = restarted._atomic_write
+
+    broken_metadata = tmp_path / "documents" / str(broken.id) / "meta.json"
+
+    def failing_write(path: Path, data: bytes) -> None:
+        if path == broken_metadata:
+            raise OSError("Simulated recovery write failure")
+        original_write(path, data)
+
+    monkeypatch.setattr(restarted, "_atomic_write", failing_write)
+
+    restarted.recover_incomplete()
+
+    saved_broken = restarted.get(broken.id)
+    saved_healthy = restarted.get(healthy.id)
+
+    assert saved_broken is not None
+    assert saved_broken.status == DocumentStatus.PROCESSING
+
+    assert saved_healthy is not None
+    assert saved_healthy.status == DocumentStatus.ERROR
+    assert saved_healthy.error_code == "processing_failed"
+    assert saved_healthy.error_message == (
+        "Обработка была прервана перезапуском сервера. Загрузите файл ещё раз."
+    )
+
+
+def test_result_json_roundtrip_preserves_unicode_and_uuids(
+    tmp_path: Path,
+) -> None:
+    """Round-trip nested dataclasses and UUIDs without losing Unicode."""
+    repository = LocalFileDocumentRepository(tmp_path)
+
+    data = "Привет 👋\r\nФинансы 📄".encode()
+    document = make_document(data)
+
+    repository.create(document, data)
+    assert repository.mark_processing(document.id)
+
+    block_id = uuid4()
+    chunk_id = uuid4()
+    content = data.decode()
+
+    block = DocumentBlock(
+        id=block_id,
+        document_id=document.id,
+        type="text",
+        position=0,
+        content=content,
+        start_char=0,
+        end_char=len(content),
+    )
+
+    chunk = Chunk(
+        id=chunk_id,
+        document_id=document.id,
+        block_id=block_id,
+        position=0,
+        content=content,
+        start_char=0,
+        end_char=len(content),
+    )
+
+    result = ProcessingResult(
+        document_id=document.id,
+        blocks=[block],
+        chunks=[chunk],
+    )
+
+    assert repository.complete(document.id, result)
+
+    result_path = tmp_path / "documents" / str(document.id) / "result.json"
+    stored = json.loads(result_path.read_text(encoding="utf-8"))
+
+    assert stored["document_id"] == str(document.id)
+    assert stored["blocks"][0]["id"] == str(block_id)
+    assert stored["chunks"][0]["id"] == str(chunk_id)
+    assert stored["blocks"][0]["content"] == content
+
+    restarted = LocalFileDocumentRepository(tmp_path)
+    restored = restarted.get_result(document.id)
+
+    assert restored == result
+    assert isinstance(restored.document_id, UUID)
+    assert isinstance(restored.blocks[0].id, UUID)
+    assert isinstance(restored.chunks[0].block_id, UUID)

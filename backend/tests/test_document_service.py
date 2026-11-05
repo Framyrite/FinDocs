@@ -108,7 +108,7 @@ def test_service_records_unexpected_error(
     assert saved is not None
     assert saved.status == DocumentStatus.ERROR
     assert saved.error_code == "processing_failed"
-    assert saved.error_message == "Document processing failed"
+    assert saved.error_message == "Не удалось обработать документ."
 
 
 def test_service_ignores_deleted_document(
@@ -234,3 +234,87 @@ def test_delete_while_processing_in_another_thread(
 
     document_dir = tmp_path / "documents" / str(document.id)
     assert not document_dir.exists()
+
+
+def test_result_write_failure_marks_document_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mark a document as failed if result.json cannot be saved."""
+    repository = LocalFileDocumentRepository(tmp_path)
+    service = DocumentService(repository)
+
+    document = make_document(b"hello")
+    repository.create(document, b"hello")
+
+    original_write = repository._atomic_write
+
+    def failing_write(path: Path, data: bytes) -> None:
+        if path.name == "result.json":
+            raise OSError("Simulated result write failure")
+        original_write(path, data)
+
+    monkeypatch.setattr(repository, "_atomic_write", failing_write)
+
+    service.process_document(document.id)
+
+    saved = repository.get(document.id)
+
+    assert saved is not None
+    assert saved.status == DocumentStatus.ERROR
+    assert saved.error_code == "processing_failed"
+    assert repository.get_result(document.id) is None
+
+
+def test_metadata_write_failure_after_result_save(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Handle failure when result.json was saved but ready status was not."""
+    repository = LocalFileDocumentRepository(tmp_path)
+    service = DocumentService(repository)
+
+    document = make_document(b"hello")
+    repository.create(document, b"hello")
+
+    original_write = repository._atomic_write
+
+    def failing_write(path: Path, data: bytes) -> None:
+        if path.name == "meta.json" and b'"ready"' in data:
+            raise OSError("Simulated ready metadata write failure")
+        original_write(path, data)
+
+    monkeypatch.setattr(repository, "_atomic_write", failing_write)
+
+    service.process_document(document.id)
+
+    saved = repository.get(document.id)
+
+    assert saved is not None
+    assert saved.status == DocumentStatus.ERROR
+    assert saved.error_code == "processing_failed"
+    assert repository.get_result(document.id) is None
+
+    result_path = tmp_path / "documents" / str(document.id) / "result.json"
+    assert not result_path.exists()
+
+
+def test_missing_original_marks_document_error(tmp_path: Path) -> None:
+    """Fail gracefully when original.bin disappears before processing."""
+    repository = LocalFileDocumentRepository(tmp_path)
+    service = DocumentService(repository)
+
+    document = make_document(b"hello")
+    repository.create(document, b"hello")
+
+    original_path = tmp_path / "documents" / str(document.id) / "original.bin"
+    original_path.unlink()
+
+    service.process_document(document.id)
+
+    saved = repository.get(document.id)
+
+    assert saved is not None
+    assert saved.status == DocumentStatus.ERROR
+    assert saved.error_code == "processing_failed"
+    assert saved.error_message

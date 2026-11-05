@@ -88,7 +88,9 @@ def test_lifespan_recovers_documents_with_injected_repository(
         assert saved is not None
         assert saved.status == DocumentStatus.ERROR
         assert saved.error_code == "processing_failed"
-        assert saved.error_message == ("Processing interrupted by server restart")
+        assert saved.error_message == (
+            "Обработка была прервана перезапуском сервера. Загрузите файл ещё раз."
+        )
 
     assert not (tmp_path / "unused").exists()
 

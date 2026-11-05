@@ -318,3 +318,60 @@ def test_upload_accepts_exact_size_limit(
     repository = client.app.state.document_repository
 
     assert repository.read_original(document_id) == data
+
+
+def test_corrupted_metadata_does_not_break_http_api(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    """Keep API available when a document has corrupted metadata."""
+    response = upload(client, "damaged.txt", b"Hello")
+    assert response.status_code == 202
+
+    document_id = response.json()["id"]
+    metadata_path = tmp_path / "documents" / document_id / "meta.json"
+    metadata_path.write_text("{invalid json", encoding="utf-8")
+
+    assert client.get("/health").status_code == 200
+
+    listing = client.get("/documents")
+    assert listing.status_code == 200
+    assert listing.json()["total"] == 0
+
+    detail = client.get(f"/documents/{document_id}")
+    assert detail.status_code == 404
+    assert detail.json()["error"]["code"] == "document_not_found"
+
+    assert metadata_path.exists()
+
+    deleted = client.delete(f"/documents/{document_id}")
+    assert deleted.status_code == 204
+    assert not metadata_path.parent.exists()
+
+
+def test_corrupted_result_does_not_break_http_api(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    """Handle damaged processing results without crashing the API."""
+    response = upload(client, "result.txt", b"Hello")
+    assert response.status_code == 202
+
+    document_id = response.json()["id"]
+    result_path = tmp_path / "documents" / document_id / "result.json"
+
+    assert result_path.is_file()
+    result_path.write_text("{invalid json", encoding="utf-8")
+
+    repository = client.app.state.document_repository
+    assert repository.get_result(UUID(document_id)) is None
+
+    detail = client.get(f"/documents/{document_id}")
+    assert detail.status_code == 200
+    assert detail.json()["status"] == "ready"
+
+    listing = client.get("/documents")
+    assert listing.status_code == 200
+    assert listing.json()["total"] == 1
+
+    assert result_path.is_file()
