@@ -105,15 +105,19 @@ export const mockApi = {
     // 4. Берем первый подходящий документ для "источника"
     const sourceDoc = documentsStore.find((d) => d.id === allowedDocIds[0])!;
 
-    // 5. Формируем ответ: копируем базовый ответ, но подменяем источник
-    // на тот документ, который реально входит в область поиска
+    // 5. Формируем ответ
+    // Если это изначальный демо-документ "Лекция 3. Облигации", то оставляем цитату
+    // Иначе (если выбран другой документ), источник не показываем, так как цитаты нет
+    const isDemoDoc = sourceDoc.filename.includes("Облигации");
+
+    if (!isDemoDoc) {
+      return mockAnswerInsufficient; // <-- Если нет цитаты, честно говорим, что инфы нет
+    }
+
     return {
       ...mockAnswer,
-      sources: mockAnswer.sources.map((s) => ({
-        ...s,
-        document_id: sourceDoc.id,
-        filename: sourceDoc.filename,
-      })),
+      sources: mockAnswer.sources,
+      status: "answered",
     };
   },
 };

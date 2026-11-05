@@ -3,8 +3,8 @@ import React, { useState, useEffect, useRef } from "react";
 import type { Document } from "../types/api";
 
 interface SearchScopeSelectorProps {
-  documents: Document[]; // Все документы (чтобы отфильтровать готовые)
-  selectedIds: string[] | null; // null = все документы
+  documents: Document[];
+  selectedIds: string[] | null;
   onChange: (ids: string[] | null) => void;
 }
 
@@ -16,7 +16,6 @@ export const SearchScopeSelector: React.FC<SearchScopeSelectorProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Закрываем по клику вне компонента
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -36,10 +35,10 @@ export const SearchScopeSelector: React.FC<SearchScopeSelectorProps> = ({
     };
   }, [isOpen]);
 
-  // Только готовые документы можно выбирать
   const readyDocs = documents.filter((d) => d.status === "ready");
 
   const isAllSelected = selectedIds === null;
+  const isEmptySelection = selectedIds !== null && selectedIds.length === 0;
 
   const handleSelectAll = () => {
     onChange(null);
@@ -47,16 +46,12 @@ export const SearchScopeSelector: React.FC<SearchScopeSelectorProps> = ({
   };
 
   const handleToggleDocument = (id: string) => {
-    // Если сейчас "все", то начинаем с пустого массива
     const current = selectedIds || [];
 
     if (current.includes(id)) {
-      // Убираем
       const next = current.filter((item) => item !== id);
-      // Если ничего не осталось — возвращаем "все"
-      onChange(next.length === 0 ? null : next);
+      onChange(next);
     } else {
-      // Добавляем
       onChange([...current, id]);
     }
   };
@@ -81,7 +76,11 @@ export const SearchScopeSelector: React.FC<SearchScopeSelectorProps> = ({
           gap: "8px",
         }}
       >
-        {isAllSelected ? "Все документы" : `Выбрано: ${selectedIds?.length}`}
+        {isAllSelected
+          ? "Все документы"
+          : isEmptySelection
+            ? "Ничего не выбрано"
+            : `Выбрано: ${selectedIds?.length}`}
         <span>{isOpen ? "▲" : "▼"}</span>
       </button>
 

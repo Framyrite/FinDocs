@@ -28,7 +28,6 @@ describe("usePolling", () => {
       expect(checkStatus).toHaveBeenCalledTimes(2);
     });
 
-    // Ждем еще немного, чтобы убедиться, что 3-го вызова нет
     await new Promise((r) => setTimeout(r, 50));
     expect(checkStatus).toHaveBeenCalledTimes(2);
   });
@@ -53,5 +52,27 @@ describe("usePolling", () => {
     await waitFor(() => {
       expect(onError).toHaveBeenCalledWith("1");
     });
+  });
+
+  // НОВЫЙ ТЕСТ, который просил Максим
+  it("обрабатывает два документа с задержкой без пересекающихся запросов", async () => {
+    const checkStatus = vi.fn().mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+      return "ready";
+    });
+
+    const onStatusChange = vi.fn();
+    const onError = vi.fn();
+
+    renderHook(() =>
+      usePolling(["1", "2"], checkStatus, onStatusChange, onError, {}, 10),
+    );
+
+    await waitFor(() => {
+      expect(checkStatus).toHaveBeenCalledTimes(2);
+    });
+
+    expect(checkStatus).toHaveBeenCalledWith("1");
+    expect(checkStatus).toHaveBeenCalledWith("2");
   });
 });

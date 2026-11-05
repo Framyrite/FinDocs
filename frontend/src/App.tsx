@@ -104,8 +104,7 @@ function App() {
       // Если удаленный документ был выбран — убираем его из выбора
       setSelectedDocIds((prev) => {
         if (prev === null) return null;
-        const filtered = prev.filter((item) => item !== id);
-        return filtered.length === 0 ? null : filtered;
+        return prev.filter((item) => item !== id);
       });
 
       // Убираем ошибку polling для удаленного документа
@@ -141,7 +140,9 @@ function App() {
   );
 
   // Проверяем, есть ли хотя бы один готовый документ
-  const hasReadyDocuments = documents.some((doc) => doc.status === "ready");
+  const hasReadyDocuments =
+    documents.some((doc) => doc.status === "ready") &&
+    (selectedDocIds === null || selectedDocIds.length > 0);
 
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto", padding: "20px" }}>

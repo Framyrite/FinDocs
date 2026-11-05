@@ -8,7 +8,7 @@ export function usePolling(
   ) => Promise<"processing" | "ready" | "error" | "uploaded">,
   onStatusChange: (id: string, status: string) => void,
   onError: (id: string) => void,
-  pollingErrors: Record<string, boolean>, // <-- Добавили
+  pollingErrors: Record<string, boolean>,
   intervalMs: number = 2000,
 ) {
   const timersRef = useRef<Record<string, number>>({});
@@ -18,11 +18,15 @@ export function usePolling(
   const onStatusChangeRef = useRef(onStatusChange);
   const onErrorRef = useRef(onError);
 
+  // Обновляем ссылки, не вызывая перезапуск эффекта
   useEffect(() => {
     checkStatusRef.current = checkStatus;
     onStatusChangeRef.current = onStatusChange;
     onErrorRef.current = onError;
   });
+
+  // Стабилизируем массив: превращаем его в строку, чтобы useEffect не реагировал на пересоздание массива
+  const idsKey = documentIds.join(",");
 
   useEffect(() => {
     // Очищаем таймеры для удаленных документов
@@ -36,8 +40,9 @@ export function usePolling(
 
     documentIds.forEach((id) => {
       // Если уже опрашивается или есть ошибка polling — пропускаем
-      if (isPollingRef.current[id] || (pollingErrors && pollingErrors[id]))
+      if (isPollingRef.current[id] || (pollingErrors && pollingErrors[id])) {
         return;
+      }
 
       isPollingRef.current[id] = true;
 
@@ -69,5 +74,8 @@ export function usePolling(
       timersRef.current = {};
       isPollingRef.current = {};
     };
-  }, [documentIds, intervalMs, pollingErrors]); // pollingErrors в зависимостях
+    // Мы используем idsKey для стабильности, а documentIds берем из замыкания.
+    // Это предотвращает бесконечные перезапуски эффекта при пересоздании массива.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey, intervalMs, pollingErrors]);
 }
