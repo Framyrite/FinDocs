@@ -42,13 +42,11 @@ describe("Chat", () => {
 
     expect(handleAsk).toHaveBeenCalledWith("Что такое облигация?", null);
 
-    // Ждем, пока ответ появится на экране
     const answerText = await screen.findByText("Тестовый ответ", {
       exact: false,
     });
     expect(answerText).toBeInTheDocument();
 
-    // Проверяем, что источник отобразился
     expect(screen.getByText("test.txt", { exact: false })).toBeInTheDocument();
     expect(screen.getByText("«Цитата»", { exact: false })).toBeInTheDocument();
   });
@@ -100,5 +98,57 @@ describe("Chat", () => {
       "Сначала загрузите и дождитесь обработки документа",
     );
     expect(input).toBeDisabled();
+  });
+
+  it("показывает техническую ошибку при сбое API", async () => {
+    const handleAsk = vi.fn().mockRejectedValue(new Error("LLM unavailable"));
+
+    render(
+      <Chat
+        onAsk={handleAsk}
+        hasReadyDocuments={true}
+        documents={[]}
+        selectedIds={null}
+        onSelectionChange={() => {}}
+      />,
+    );
+
+    const input = screen.getByPlaceholderText("Введите свой вопрос...");
+    await userEvent.type(input, "Тестовый вопрос");
+    await userEvent.click(screen.getByText("Отправить"));
+
+    const errorText = await screen.findByText(
+      "Произошла техническая ошибка при получении ответа. Попробуйте еще раз.",
+    );
+    expect(errorText).toBeInTheDocument();
+  });
+
+  it("показывает предупреждение при частичном ответе (partial)", async () => {
+    const mockAnswer: Answer = {
+      status: "partial",
+      answer: "Частичный ответ",
+      sources: [],
+    };
+
+    const handleAsk = vi.fn().mockResolvedValue(mockAnswer);
+
+    render(
+      <Chat
+        onAsk={handleAsk}
+        hasReadyDocuments={true}
+        documents={[]}
+        selectedIds={null}
+        onSelectionChange={() => {}}
+      />,
+    );
+
+    const input = screen.getByPlaceholderText("Введите свой вопрос...");
+    await userEvent.type(input, "Тестовый вопрос");
+    await userEvent.click(screen.getByText("Отправить"));
+
+    const partialWarning = await screen.findByText(
+      "⚠️ Ответ неполный: система нашла информацию только по части вопроса.",
+    );
+    expect(partialWarning).toBeInTheDocument();
   });
 });
