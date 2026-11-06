@@ -41,6 +41,22 @@ export function usePolling(
   const idsKey =
     documentIds.join(",") + "|" + Object.keys(pollingErrors).join(",");
 
+  // ЭФФЕКТ 1: Полная очистка при размонтировании компонента
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      // Убиваем все активные таймеры
+      Object.keys(stateRef.current).forEach((id) => {
+        if (stateRef.current[id].timer) {
+          clearTimeout(stateRef.current[id].timer);
+        }
+      });
+      // Полностью очищаем состояние
+      stateRef.current = {};
+    };
+  }, []);
+
   // ЭФФЕКТ 1: Управление списком опрашиваемых документов
   useEffect(() => {
     const currentIds = new Set(documentIds);
@@ -131,20 +147,4 @@ export function usePolling(
     // Здесь нет cleanup! Мы управляем таймерами вручную, чтобы они не сбивались при ререндере.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey, intervalMs]);
-
-  // ЭФФЕКТ 2: Полная очистка при размонтировании компонента
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      // Убиваем все активные таймеры
-      Object.keys(stateRef.current).forEach((id) => {
-        if (stateRef.current[id].timer) {
-          clearTimeout(stateRef.current[id].timer);
-        }
-      });
-      // Полностью очищаем состояние
-      stateRef.current = {};
-    };
-  }, []);
 }

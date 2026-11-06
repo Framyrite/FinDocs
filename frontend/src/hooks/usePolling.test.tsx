@@ -194,15 +194,21 @@ describe("usePolling", () => {
     expect(checkStatus).toHaveBeenCalledTimes(1);
   });
 
-  it("не запускает параллельные запросы в StrictMode", async () => {
-    let resolvePromise: (status: string) => void;
-    const pendingPromise = new Promise<string>((res) => {
-      resolvePromise = res;
+  it("корректно работает в StrictMode (полный сценарий)", async () => {
+    // 1. Создаем управляемые промисы для первого и второго запросов
+    let resolveFirst: (status: string) => void;
+    let resolveSecond: (status: string) => void;
+
+    const firstPromise = new Promise<string>((res) => {
+      resolveFirst = res;
+    });
+    const secondPromise = new Promise<string>((res) => {
+      resolveSecond = res;
     });
 
     const checkStatus = vi.fn().mockImplementation(async () => {
-      // Имитируем долгий ответ сервера
-      return pendingPromise;
+      if (checkStatus.mock.calls.length === 1) return firstPromise;
+      return secondPromise;
     });
 
     const onStatusChange = vi.fn();
@@ -213,26 +219,34 @@ describe("usePolling", () => {
       { wrapper: StrictMode },
     );
 
-    // Ждем, пока запрос начнется
-    await waitFor(() => {
-      expect(checkStatus).toHaveBeenCalled();
-    });
+    // Ждем, пока запустится первый запрос (в StrictMode их будет 2)
+    await waitFor(() => expect(checkStatus).toHaveBeenCalled());
 
-    // В StrictMode React может вызвать эффект дважды.
-    // Но наш хук при размонтировании убивает состояние.
-    // Второй эффект создаст новое состояние и запустит НОВЫЙ запрос.
-    // Это нормально (два запроса подряд), но они не должны работать ОДНОВРЕМЕННО.
+    // В StrictMode из-за двойного монтирования должно быть ровно 2 вызова.
+    // (Первый запрос от первого монтирования, второй от второго).
+    expect(checkStatus).toHaveBeenCalledTimes(2);
 
-    // Сейчас у нас может быть 2 вызова (из-за двойного эффекта), но не больше.
-    expect(checkStatus.mock.calls.length).toBeLessThanOrEqual(2);
-
-    // Завершаем текущий запрос
-    resolvePromise!("processing");
+    // Завершаем первый запрос (он должен проигнорироваться)
+    resolveFirst!("processing");
     await new Promise((r) => setTimeout(r, 30));
 
-    // Убеждаемся, что после завершения не началось бесконечное дублирование
-    expect(checkStatus.mock.calls.length).toBeLessThanOrEqual(3);
+    // Проверяем, что первый запрос не вызвал onStatusChange
+    expect(onStatusChange).not.toHaveBeenCalled();
 
+    // Завершаем второй запрос со статусом processing
+    resolveSecond!("processing");
+    await new Promise((r) => setTimeout(r, 30));
+
+    // Теперь должен был запланироваться следующий запрос (таймер)
+    // И onStatusChange должен был получить "processing" от второго запроса
+    expect(onStatusChange).toHaveBeenCalledWith("1", "processing");
+
+    // Размонтируем компонент
     unmount();
+
+    // Ждем, чтобы убедиться, что после размонтирования новых запросов нет
+    const callsBeforeUnmount = checkStatus.mock.calls.length;
+    await new Promise((r) => setTimeout(r, 50));
+    expect(checkStatus.mock.calls.length).toBe(callsBeforeUnmount);
   });
 });
