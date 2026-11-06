@@ -30,6 +30,12 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
 
+      - name: Run Ruff Linter
+        run: python -m ruff check .
+
+      - name: Run Ruff Formatter Check
+        run: python -m ruff format --check .
+
       - name: Download tokenizer for TXT tests
         run: |
           mkdir -p models/multilingual-e5-small
