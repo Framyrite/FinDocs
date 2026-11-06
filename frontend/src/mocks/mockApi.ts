@@ -81,7 +81,7 @@ export const mockApi = {
     }
 
     // 2. Определяем, по каким документам ищем
-    let allowedDocIds: string[] = [];
+    let allowedDocIds: string[];
 
     if (request.document_ids === null) {
       // Если null — ищем по всем готовым документам в хранилище
@@ -102,22 +102,23 @@ export const mockApi = {
       return mockAnswerInsufficient;
     }
 
-    // 4. Берем первый подходящий документ для "источника"
-    const sourceDoc = documentsStore.find((d) => d.id === allowedDocIds[0])!;
+    // 4. Ищем демонстрационный документ по его фиксированному ID
+    // В data.ts mockDocuments[0] - это "Лекция 3. Облигации.txt"
+    const demoDocId = mockDocuments[0].id;
 
-    // 5. Формируем ответ
-    // Если это изначальный демо-документ "Лекция 3. Облигации", то оставляем цитату
-    // Иначе (если выбран другой документ), источник не показываем, так как цитаты нет
-    const isDemoDoc = sourceDoc.filename.includes("Облигации");
+    // Проверяем, что этот ID входит в allowedDocIds (то есть он не удален и в области поиска)
+    const hasDemoDoc = allowedDocIds.includes(demoDocId);
 
-    if (!isDemoDoc) {
-      return mockAnswerInsufficient; // <-- Если нет цитаты, честно говорим, что инфы нет
+    // 5. Если демо-документ есть — возвращаем ответ с его источником
+    if (hasDemoDoc) {
+      return {
+        ...mockAnswer,
+        sources: mockAnswer.sources,
+        status: "answered",
+      };
     }
 
-    return {
-      ...mockAnswer,
-      sources: mockAnswer.sources,
-      status: "answered",
-    };
+    // Если демо-документа нет в области поиска — честно говорим, что инфы нет
+    return mockAnswerInsufficient;
   },
 };

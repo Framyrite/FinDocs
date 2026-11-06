@@ -1,6 +1,12 @@
 // frontend/src/hooks/usePolling.ts
 import { useEffect, useRef } from "react";
 
+interface PollState {
+  timer: number | null;
+  isRequesting: boolean;
+  cancelled?: boolean;
+}
+
 export function usePolling(
   documentIds: string[],
   checkStatus: (
@@ -11,57 +17,80 @@ export function usePolling(
   pollingErrors: Record<string, boolean>,
   intervalMs: number = 2000,
 ) {
-  const timersRef = useRef<Record<string, number>>({});
-  const isPollingRef = useRef<Record<string, boolean>>({});
+  const stateRef = useRef<Record<string, PollState>>({});
 
   const checkStatusRef = useRef(checkStatus);
   const onStatusChangeRef = useRef(onStatusChange);
   const onErrorRef = useRef(onError);
 
-  // Обновляем ссылки, не вызывая перезапуск эффекта
   useEffect(() => {
     checkStatusRef.current = checkStatus;
     onStatusChangeRef.current = onStatusChange;
     onErrorRef.current = onError;
   });
 
-  // Стабилизируем массив: превращаем его в строку, чтобы useEffect не реагировал на пересоздание массива
   const idsKey = documentIds.join(",");
 
   useEffect(() => {
-    // Очищаем таймеры для удаленных документов
-    Object.keys(timersRef.current).forEach((id) => {
-      if (!documentIds.includes(id)) {
-        clearTimeout(timersRef.current[id]);
-        delete timersRef.current[id];
-        isPollingRef.current[id] = false;
+    const currentIds = new Set(documentIds);
+
+    // 1. Останавливаем таймеры для удаленных документов
+    Object.keys(stateRef.current).forEach((id) => {
+      if (!currentIds.has(id)) {
+        if (stateRef.current[id].timer) {
+          clearTimeout(stateRef.current[id].timer);
+        }
+        if (stateRef.current[id].isRequesting) {
+          stateRef.current[id].cancelled = true;
+          stateRef.current[id].timer = null;
+        } else {
+          delete stateRef.current[id];
+        }
       }
     });
 
+    // 2. Запускаем новые
     documentIds.forEach((id) => {
-      // Если уже опрашивается или есть ошибка polling — пропускаем
-      if (isPollingRef.current[id] || (pollingErrors && pollingErrors[id])) {
-        return;
-      }
+      if (pollingErrors && pollingErrors[id]) return;
 
-      isPollingRef.current[id] = true;
+      if (stateRef.current[id]?.isRequesting) return;
+      if (stateRef.current[id]?.timer) return;
+
+      stateRef.current[id] = { timer: null, isRequesting: false };
 
       const poll = async () => {
-        if (!isPollingRef.current[id]) return;
+        const state = stateRef.current[id];
+        if (!state) return;
+        if (state.cancelled) {
+          delete stateRef.current[id];
+          return;
+        }
+
+        state.isRequesting = true;
+        state.timer = null;
 
         try {
           const status = await checkStatusRef.current(id);
 
+          // Проверяем, не удалили ли документ за время запроса
+          const currentState = stateRef.current[id];
+          if (!currentState || currentState.cancelled) {
+            delete stateRef.current[id];
+            return;
+          }
+
           if (status === "ready" || status === "error") {
-            isPollingRef.current[id] = false;
-            delete timersRef.current[id];
+            delete stateRef.current[id];
           } else {
             onStatusChangeRef.current(id, status);
-            timersRef.current[id] = window.setTimeout(poll, intervalMs);
+            currentState.isRequesting = false;
+            currentState.timer = window.setTimeout(poll, intervalMs);
           }
         } catch {
-          isPollingRef.current[id] = false;
-          delete timersRef.current[id];
+          const currentState = stateRef.current[id];
+          if (!currentState) return;
+          currentState.isRequesting = false;
+          delete stateRef.current[id];
           onErrorRef.current(id);
         }
       };
@@ -69,13 +98,19 @@ export function usePolling(
       poll();
     });
 
+    // 3. Cleanup: копируем ссылку на объект в локальную переменную
+    const stateRecord = stateRef.current;
+
     return () => {
-      Object.values(timersRef.current).forEach(clearTimeout);
-      timersRef.current = {};
-      isPollingRef.current = {};
+      Object.keys(stateRecord).forEach((id) => {
+        if (stateRecord[id].timer) {
+          clearTimeout(stateRecord[id].timer);
+          stateRecord[id].timer = null;
+        }
+      });
     };
     // Мы используем idsKey для стабильности, а documentIds берем из замыкания.
-    // Это предотвращает бесконечные перезапуски эффекта при пересоздании массива.
+    // Это предотвращает бесконечные перезапуски эффекта.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey, intervalMs, pollingErrors]);
 }
