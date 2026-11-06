@@ -78,9 +78,7 @@ def test_mock_llm_is_deterministic() -> None:
 
     assert first == second
     assert first == (
-        "[MOCK] Тестовый ответ. Реальная LLM не подключена.\n"
-        "Вопрос: Что такое FinDocs? 👋\n"
-        "Контекст: Это учебный проект."
+        "[MOCK] Найдены фрагменты по ключевым словам вопроса:\n1. «Это учебный проект.»"
     )
 
 
@@ -88,7 +86,7 @@ def test_mock_llm_allows_empty_context() -> None:
     """Ensure missing source context is represented explicitly instead of rejected."""
     result = MockLLM().generate("Вопрос", "")
 
-    assert "Контекст: (пустой контекст)" in result
+    assert result == ("[MOCK] Найдены фрагменты по ключевым словам вопроса:")
 
 
 @pytest.mark.parametrize("question", ["", " ", "\t\n"])
