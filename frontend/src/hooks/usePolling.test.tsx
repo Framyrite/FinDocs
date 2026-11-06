@@ -241,6 +241,11 @@ describe("usePolling", () => {
     // И onStatusChange должен был получить "processing" от второго запроса
     expect(onStatusChange).toHaveBeenCalledWith("1", "processing");
 
+    // Проверяем, что таймер сработал и запустил следующий запрос
+    await waitFor(() => {
+      expect(checkStatus.mock.calls.length).toBeGreaterThan(2);
+    });
+
     // Размонтируем компонент
     unmount();
 
