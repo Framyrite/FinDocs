@@ -31,10 +31,10 @@ jobs:
           python -m pip install -r requirements-dev.txt
 
       - name: Run Ruff Linter
-        run: python -m ruff check .
+        run: python -m ruff check . ../tests/
 
       - name: Run Ruff Formatter Check
-        run: python -m ruff format --check .
+        run: python -m ruff format --check . ../tests/
 
       - name: Download tokenizer for TXT tests
         run: |
