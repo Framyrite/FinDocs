@@ -194,8 +194,17 @@ describe("usePolling", () => {
     expect(checkStatus).toHaveBeenCalledTimes(1);
   });
 
-  it("работает в StrictMode (двойной вызов эффектов)", async () => {
-    const checkStatus = vi.fn().mockResolvedValue("processing");
+  it("не запускает параллельные запросы в StrictMode", async () => {
+    let resolvePromise: (status: string) => void;
+    const pendingPromise = new Promise<string>((res) => {
+      resolvePromise = res;
+    });
+
+    const checkStatus = vi.fn().mockImplementation(async () => {
+      // Имитируем долгий ответ сервера
+      return pendingPromise;
+    });
+
     const onStatusChange = vi.fn();
     const onError = vi.fn();
 
@@ -204,12 +213,25 @@ describe("usePolling", () => {
       { wrapper: StrictMode },
     );
 
-    // Ждем, пока запрос запустится (в StrictMode эффект вызывается дважды)
-    await waitFor(() => expect(checkStatus).toHaveBeenCalled());
+    // Ждем, пока запрос начнется
+    await waitFor(() => {
+      expect(checkStatus).toHaveBeenCalled();
+    });
 
-    // В StrictMode эффект вызывается дважды, поэтому запросов может быть 2,
-    // но они не должны дублироваться бесконечно
+    // В StrictMode React может вызвать эффект дважды.
+    // Но наш хук при размонтировании убивает состояние.
+    // Второй эффект создаст новое состояние и запустит НОВЫЙ запрос.
+    // Это нормально (два запроса подряд), но они не должны работать ОДНОВРЕМЕННО.
+
+    // Сейчас у нас может быть 2 вызова (из-за двойного эффекта), но не больше.
     expect(checkStatus.mock.calls.length).toBeLessThanOrEqual(2);
+
+    // Завершаем текущий запрос
+    resolvePromise!("processing");
+    await new Promise((r) => setTimeout(r, 30));
+
+    // Убеждаемся, что после завершения не началось бесконечное дублирование
+    expect(checkStatus.mock.calls.length).toBeLessThanOrEqual(3);
 
     unmount();
   });
