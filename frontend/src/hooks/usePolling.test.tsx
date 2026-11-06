@@ -115,4 +115,81 @@ describe("usePolling", () => {
     expect(onStatusChange).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
   });
+
+  it("корректно обрабатывает удаление и повторное добавление документа во время запроса", async () => {
+    let resolveFirst: (status: string) => void;
+    const firstPromise = new Promise<string>((res) => {
+      resolveFirst = res;
+    });
+
+    const checkStatus = vi.fn().mockImplementation(async (id) => {
+      if (id === "1") {
+        // Первый вызов возвращает висящий промис
+        if (checkStatus.mock.calls.filter((c) => c[0] === "1").length === 1) {
+          return firstPromise;
+        }
+        // Второй вызов (после повторного добавления) возвращает ready
+        return "ready";
+      }
+    });
+
+    const onStatusChange = vi.fn();
+    const onError = vi.fn();
+
+    // Запускаем для "1"
+    const { rerender } = renderHook(
+      ({ ids }) =>
+        usePolling(ids, checkStatus, onStatusChange, onError, {}, 10),
+      { initialProps: { ids: ["1"] } },
+    );
+
+    // Ждем, пока первый запрос начнется
+    await waitFor(() => {
+      expect(checkStatus).toHaveBeenCalledTimes(1);
+    });
+
+    // Удаляем "1" (он отменяется)
+    rerender({ ids: [] });
+
+    // Сразу добавляем "1" обратно
+    rerender({ ids: ["1"] });
+
+    // Проверяем, что для "1" был запущен второй запрос (потому что старый отменен)
+    await waitFor(() => {
+      expect(checkStatus.mock.calls.filter((c) => c[0] === "1").length).toBe(2);
+    });
+
+    // Завершаем первый запрос — он должен проигнорироваться
+    resolveFirst!("processing");
+
+    await new Promise((r) => setTimeout(r, 30));
+
+    // Главная проверка: старый запрос не должен был вызвать onStatusChange
+    expect(onStatusChange).not.toHaveBeenCalled();
+    // И не должен был вызвать onError
+    expect(onError).not.toHaveBeenCalled();
+  });
+  it("не отправляет запрос по таймеру после размонтирования", async () => {
+    const checkStatus = vi.fn().mockResolvedValue("processing");
+    const onStatusChange = vi.fn();
+    const onError = vi.fn();
+
+    const { unmount } = renderHook(() =>
+      usePolling(["1"], checkStatus, onStatusChange, onError, {}, 50),
+    );
+
+    // Ждем, пока первый запрос завершится и поставится таймер
+    await waitFor(() => {
+      expect(checkStatus).toHaveBeenCalledTimes(1);
+    });
+
+    // Размонтируем ДО того, как таймер сработает
+    unmount();
+
+    // Ждем больше, чем интервал таймера
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Проверяем, что второго запроса не было
+    expect(checkStatus).toHaveBeenCalledTimes(1);
+  });
 });

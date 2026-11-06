@@ -17,69 +17,84 @@ export function usePolling(
   pollingErrors: Record<string, boolean>,
   intervalMs: number = 2000,
 ) {
+  // Хранилище состояний для каждого ID
   const stateRef = useRef<Record<string, PollState>>({});
+
+  // Флаг, что компонент жив (для защиты от запросов после размонтирования)
   const isMountedRef = useRef(true);
 
+  // Актуальные ссылки на пропсы и функции (чтобы не перезапускать эффекты)
   const checkStatusRef = useRef(checkStatus);
   const onStatusChangeRef = useRef(onStatusChange);
   const onErrorRef = useRef(onError);
+  const errorsRef = useRef(pollingErrors);
 
-  // Отслеживаем размонтирование
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
+  // Обновляем ссылки при каждом рендере
   useEffect(() => {
     checkStatusRef.current = checkStatus;
     onStatusChangeRef.current = onStatusChange;
     onErrorRef.current = onError;
+    errorsRef.current = pollingErrors;
   });
 
-  const idsKey = documentIds.join(",");
+  // Ключ зависит от списка ID и от ошибок (чтобы кнопка "Повторить" работала)
+  const idsKey =
+    documentIds.join(",") + "|" + Object.keys(pollingErrors).join(",");
 
+  // ЭФФЕКТ 1: Управление списком документов
   useEffect(() => {
     const currentIds = new Set(documentIds);
 
-    // 1. Останавливаем и отменяем запросы для удаленных документов
+    // 1. Очищаем таймеры и состояние для удаленных документов
     Object.keys(stateRef.current).forEach((id) => {
       if (!currentIds.has(id)) {
         if (stateRef.current[id].timer) {
           clearTimeout(stateRef.current[id].timer);
         }
         if (stateRef.current[id].isRequesting) {
-          stateRef.current[id].cancelled = true;
+          stateRef.current[id].cancelled = true; // помечаем, что результат не нужен
         } else {
           delete stateRef.current[id];
         }
       }
     });
 
-    // 2. Запускаем новые
+    // 2. Запускаем опрос для новых или тех, кому нужно продолжить
     documentIds.forEach((id) => {
-      if (pollingErrors && pollingErrors[id]) return;
-      if (stateRef.current[id]?.isRequesting) return;
-      if (stateRef.current[id]?.timer) return;
+      if (errorsRef.current[id]) return; // если есть ошибка polling — не запускаем
 
-      stateRef.current[id] = { timer: null, isRequesting: false };
+      // Если документ был отменен (удален), но вернулся — полностью удаляем старое состояние
+      if (stateRef.current[id]?.cancelled) {
+        delete stateRef.current[id];
+      }
+
+      const state = stateRef.current[id];
+      if (state?.timer || state?.isRequesting) return; // уже работает
+
+      // Создаем новое чистое состояние
+      stateRef.current[id] = {
+        timer: null,
+        isRequesting: false,
+        cancelled: false,
+      };
 
       const poll = async () => {
-        const state = stateRef.current[id];
-        if (!state) return;
-        if (state.cancelled) {
+        const currentState = stateRef.current[id];
+        if (!currentState) return;
+
+        // Если компонент размонтирован или документ удален — выходим
+        if (!isMountedRef.current || currentState.cancelled) {
           delete stateRef.current[id];
           return;
         }
 
-        state.isRequesting = true;
-        state.timer = null;
+        currentState.isRequesting = true;
+        currentState.timer = null;
 
         try {
           const status = await checkStatusRef.current(id);
 
-          // Если компонент размонтирован или документ отменен
+          // После await проверяем, что компонент жив и документ актуален
           if (
             !isMountedRef.current ||
             !stateRef.current[id] ||
@@ -112,12 +127,23 @@ export function usePolling(
       poll();
     });
 
-    // 3. Cleanup: только при размонтировании компонента
-    return () => {
-      // Мы не отменяем здесь, потому что cleanup вызывается и при rerender
-      // Отмена происходит в теле эффекта для удаленных документов
-      // и через isMountedRef для полного размонтирования
-    };
+    // Мы не делаем cleanup здесь! Мы просто управляем состоянием.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idsKey, intervalMs, pollingErrors]);
+  }, [idsKey, intervalMs]);
+
+  // ЭФФЕКТ 2: Полная очистка при размонтировании компонента
+  useEffect(() => {
+    isMountedRef.current = true; // компонент смонтирован
+    return () => {
+      isMountedRef.current = false;
+      // Убиваем все таймеры
+      Object.keys(stateRef.current).forEach((id) => {
+        if (stateRef.current[id].timer) {
+          clearTimeout(stateRef.current[id].timer);
+        }
+      });
+      // Очищаем состояние
+      stateRef.current = {};
+    };
+  }, []);
 }
