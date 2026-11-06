@@ -17,7 +17,7 @@ describe("UploadButton", () => {
     fireEvent.change(input, { target: { files: [file] } });
 
     expect(window.alert).toHaveBeenCalledWith(
-      "Поддерживаются только файлы .txt",
+      "Поддерживаются только файлы: .txt",
     );
     expect(handleUpload).not.toHaveBeenCalled();
   });

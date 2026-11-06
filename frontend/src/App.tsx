@@ -78,6 +78,16 @@ function App() {
   };
 
   const handleUpload = async (file: File) => {
+    // Проверка на дубли (по имени и размеру)
+    const isDuplicate = documents.some(
+      (doc) => doc.filename === file.name && doc.size_bytes === file.size,
+    );
+
+    if (isDuplicate) {
+      alert("Этот файл уже загружен");
+      return;
+    }
+
     setIsUploading(true);
     try {
       const newDoc = await api.uploadDocument(file);

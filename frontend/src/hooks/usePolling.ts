@@ -17,13 +17,13 @@ export function usePolling(
   pollingErrors: Record<string, boolean>,
   intervalMs: number = 2000,
 ) {
-  // Хранилище состояний для каждого ID
+  // Внутреннее состояние для каждого документа (таймер, флаг запроса, флаг отмены)
   const stateRef = useRef<Record<string, PollState>>({});
 
-  // Флаг, что компонент жив (для защиты от запросов после размонтирования)
+  // Флаг, что компонент смонтирован (защита от запросов после размонтирования)
   const isMountedRef = useRef(true);
 
-  // Актуальные ссылки на пропсы и функции (чтобы не перезапускать эффекты)
+  // Храним актуальные функции в ref, чтобы useEffect не зависел от их пересоздания
   const checkStatusRef = useRef(checkStatus);
   const onStatusChangeRef = useRef(onStatusChange);
   const onErrorRef = useRef(onError);
@@ -37,22 +37,23 @@ export function usePolling(
     errorsRef.current = pollingErrors;
   });
 
-  // Ключ зависит от списка ID и от ошибок (чтобы кнопка "Повторить" работала)
+  // Стабильный ключ для отслеживания изменений списка документов и ошибок (для кнопки "Повторить")
   const idsKey =
     documentIds.join(",") + "|" + Object.keys(pollingErrors).join(",");
 
-  // ЭФФЕКТ 1: Управление списком документов
+  // ЭФФЕКТ 1: Управление списком опрашиваемых документов
   useEffect(() => {
     const currentIds = new Set(documentIds);
 
-    // 1. Очищаем таймеры и состояние для удаленных документов
+    // 1. Очищаем таймеры и состояние для документов, которые были удалены
     Object.keys(stateRef.current).forEach((id) => {
       if (!currentIds.has(id)) {
         if (stateRef.current[id].timer) {
           clearTimeout(stateRef.current[id].timer);
         }
         if (stateRef.current[id].isRequesting) {
-          stateRef.current[id].cancelled = true; // помечаем, что результат не нужен
+          // Если запрос уже в процессе, помечаем, что его результат не нужен
+          stateRef.current[id].cancelled = true;
         } else {
           delete stateRef.current[id];
         }
@@ -61,30 +62,29 @@ export function usePolling(
 
     // 2. Запускаем опрос для новых или тех, кому нужно продолжить
     documentIds.forEach((id) => {
-      if (errorsRef.current[id]) return; // если есть ошибка polling — не запускаем
+      // Пропускаем, если для документа уже есть ошибка polling
+      if (errorsRef.current[id]) return;
 
       // Если документ был отменен (удален), но вернулся — полностью удаляем старое состояние
       if (stateRef.current[id]?.cancelled) {
         delete stateRef.current[id];
       }
 
-      const state = stateRef.current[id];
-      if (state?.timer || state?.isRequesting) return; // уже работает
+      const existingState = stateRef.current[id];
+      // Пропускаем, если уже идет запрос или тикает таймер
+      if (existingState?.timer || existingState?.isRequesting) return;
 
-      // Создаем новое чистое состояние
-      stateRef.current[id] = {
+      // Создаем НОВОЕ состояние и сохраняем на него ссылку
+      const currentState: PollState = {
         timer: null,
         isRequesting: false,
         cancelled: false,
       };
+      stateRef.current[id] = currentState;
 
       const poll = async () => {
-        const currentState = stateRef.current[id];
-        if (!currentState) return;
-
-        // Если компонент размонтирован или документ удален — выходим
+        // Проверяем перед запросом: компонент жив, запрос не отменен
         if (!isMountedRef.current || currentState.cancelled) {
-          delete stateRef.current[id];
           return;
         }
 
@@ -94,55 +94,56 @@ export function usePolling(
         try {
           const status = await checkStatusRef.current(id);
 
-          // После await проверяем, что компонент жив и документ актуален
+          // ГЛАВНАЯ ПРОВЕРКА: не заменили ли наше состояние, пока мы ждали?
+          // Если stateRef.current[id] !== currentState, значит это "старый" запрос
           if (
             !isMountedRef.current ||
-            !stateRef.current[id] ||
-            stateRef.current[id].cancelled
+            stateRef.current[id] !== currentState ||
+            currentState.cancelled
           ) {
-            delete stateRef.current[id];
             return;
           }
 
           if (status === "ready" || status === "error") {
-            delete stateRef.current[id];
+            delete stateRef.current[id]; // Конечный статус — прекращаем опрос
           } else {
-            onStatusChangeRef.current(id, status);
-            stateRef.current[id].isRequesting = false;
-            stateRef.current[id].timer = window.setTimeout(poll, intervalMs);
+            onStatusChangeRef.current(id, status); // Промежуточный статус — обновляем UI
+            currentState.isRequesting = false;
+            currentState.timer = window.setTimeout(poll, intervalMs); // Планируем следующий
           }
         } catch {
           if (
             !isMountedRef.current ||
-            !stateRef.current[id] ||
-            stateRef.current[id].cancelled
-          )
+            stateRef.current[id] !== currentState ||
+            currentState.cancelled
+          ) {
             return;
-          stateRef.current[id].isRequesting = false;
+          }
+          currentState.isRequesting = false;
           delete stateRef.current[id];
-          onErrorRef.current(id);
+          onErrorRef.current(id); // Сообщаем об ошибке (кнопка "Повторить")
         }
       };
 
       poll();
     });
 
-    // Мы не делаем cleanup здесь! Мы просто управляем состоянием.
+    // Здесь нет cleanup! Мы управляем таймерами вручную, чтобы они не сбивались при ререндере.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey, intervalMs]);
 
   // ЭФФЕКТ 2: Полная очистка при размонтировании компонента
   useEffect(() => {
-    isMountedRef.current = true; // компонент смонтирован
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      // Убиваем все таймеры
+      // Убиваем все активные таймеры
       Object.keys(stateRef.current).forEach((id) => {
         if (stateRef.current[id].timer) {
           clearTimeout(stateRef.current[id].timer);
         }
       });
-      // Очищаем состояние
+      // Полностью очищаем состояние
       stateRef.current = {};
     };
   }, []);

@@ -7,6 +7,7 @@ interface UploadButtonProps {
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 МБ
+const ALLOWED_EXTENSIONS = [".txt"];
 
 export const UploadButton: React.FC<UploadButtonProps> = ({
   onUpload,
@@ -19,8 +20,12 @@ export const UploadButton: React.FC<UploadButtonProps> = ({
     if (!file) return;
 
     // 1. Проверка расширения
-    if (!file.name.toLowerCase().endsWith(".txt")) {
-      alert("Поддерживаются только файлы .txt");
+    const hasValidExtension = ALLOWED_EXTENSIONS.some((ext) =>
+      file.name.toLowerCase().endsWith(ext),
+    );
+
+    if (!hasValidExtension) {
+      alert(`Поддерживаются только файлы: ${ALLOWED_EXTENSIONS.join(", ")}`);
       return;
     }
 
@@ -42,7 +47,7 @@ export const UploadButton: React.FC<UploadButtonProps> = ({
     <>
       <input
         type="file"
-        accept=".txt"
+        accept={ALLOWED_EXTENSIONS.join(",")}
         ref={fileInputRef}
         onChange={handleFileChange}
         style={{ display: "none" }}
