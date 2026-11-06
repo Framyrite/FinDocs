@@ -80,4 +80,39 @@ describe("usePolling", () => {
       ).toBeGreaterThan(1);
     });
   });
+
+  it("останавливает polling при размонтировании", async () => {
+    let resolvePromise: (status: string) => void;
+    const pendingPromise = new Promise<string>((res) => {
+      resolvePromise = res;
+    });
+
+    const checkStatus = vi.fn().mockImplementation(async () => {
+      return pendingPromise;
+    });
+
+    const onStatusChange = vi.fn();
+    const onError = vi.fn();
+
+    const { unmount } = renderHook(() =>
+      usePolling(["1"], checkStatus, onStatusChange, onError, {}, 10),
+    );
+
+    // Ждем, пока запрос начнется
+    await waitFor(() => {
+      expect(checkStatus).toHaveBeenCalledTimes(1);
+    });
+
+    // Размонтируем компонент до завершения запроса
+    unmount();
+
+    // Завершаем запрос
+    resolvePromise!("processing");
+    await new Promise((r) => setTimeout(r, 30));
+
+    // Проверяем, что после размонтирования не было новых запросов и обработчиков
+    expect(checkStatus).toHaveBeenCalledTimes(1);
+    expect(onStatusChange).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
 });

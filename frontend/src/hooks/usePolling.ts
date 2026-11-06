@@ -18,10 +18,19 @@ export function usePolling(
   intervalMs: number = 2000,
 ) {
   const stateRef = useRef<Record<string, PollState>>({});
+  const isMountedRef = useRef(true);
 
   const checkStatusRef = useRef(checkStatus);
   const onStatusChangeRef = useRef(onStatusChange);
   const onErrorRef = useRef(onError);
+
+  // Отслеживаем размонтирование
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     checkStatusRef.current = checkStatus;
@@ -34,7 +43,7 @@ export function usePolling(
   useEffect(() => {
     const currentIds = new Set(documentIds);
 
-    // 1. Останавливаем таймеры для удаленных документов
+    // 1. Останавливаем и отменяем запросы для удаленных документов
     Object.keys(stateRef.current).forEach((id) => {
       if (!currentIds.has(id)) {
         if (stateRef.current[id].timer) {
@@ -42,7 +51,6 @@ export function usePolling(
         }
         if (stateRef.current[id].isRequesting) {
           stateRef.current[id].cancelled = true;
-          stateRef.current[id].timer = null;
         } else {
           delete stateRef.current[id];
         }
@@ -52,7 +60,6 @@ export function usePolling(
     // 2. Запускаем новые
     documentIds.forEach((id) => {
       if (pollingErrors && pollingErrors[id]) return;
-
       if (stateRef.current[id]?.isRequesting) return;
       if (stateRef.current[id]?.timer) return;
 
@@ -72,9 +79,12 @@ export function usePolling(
         try {
           const status = await checkStatusRef.current(id);
 
-          // Проверяем, не удалили ли документ за время запроса
-          const currentState = stateRef.current[id];
-          if (!currentState || currentState.cancelled) {
+          // Если компонент размонтирован или документ отменен
+          if (
+            !isMountedRef.current ||
+            !stateRef.current[id] ||
+            stateRef.current[id].cancelled
+          ) {
             delete stateRef.current[id];
             return;
           }
@@ -83,13 +93,17 @@ export function usePolling(
             delete stateRef.current[id];
           } else {
             onStatusChangeRef.current(id, status);
-            currentState.isRequesting = false;
-            currentState.timer = window.setTimeout(poll, intervalMs);
+            stateRef.current[id].isRequesting = false;
+            stateRef.current[id].timer = window.setTimeout(poll, intervalMs);
           }
         } catch {
-          const currentState = stateRef.current[id];
-          if (!currentState) return;
-          currentState.isRequesting = false;
+          if (
+            !isMountedRef.current ||
+            !stateRef.current[id] ||
+            stateRef.current[id].cancelled
+          )
+            return;
+          stateRef.current[id].isRequesting = false;
           delete stateRef.current[id];
           onErrorRef.current(id);
         }
@@ -98,19 +112,12 @@ export function usePolling(
       poll();
     });
 
-    // 3. Cleanup: копируем ссылку на объект в локальную переменную
-    const stateRecord = stateRef.current;
-
+    // 3. Cleanup: только при размонтировании компонента
     return () => {
-      Object.keys(stateRecord).forEach((id) => {
-        if (stateRecord[id].timer) {
-          clearTimeout(stateRecord[id].timer);
-          stateRecord[id].timer = null;
-        }
-      });
+      // Мы не отменяем здесь, потому что cleanup вызывается и при rerender
+      // Отмена происходит в теле эффекта для удаленных документов
+      // и через isMountedRef для полного размонтирования
     };
-    // Мы используем idsKey для стабильности, а documentIds берем из замыкания.
-    // Это предотвращает бесконечные перезапуски эффекта.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey, intervalMs, pollingErrors]);
 }

@@ -48,7 +48,7 @@ export const mockAnswer: Answer = {
       block_id: "b6d1c0a4-7e52-5f0b-a3c8-2d9e4f6a1b70",
       chunk_id: "c2f8a9d3-1b64-5e7a-9d05-8a3b6c4e2f91",
       start_char: 1204,
-      end_char: 1612,
+      end_char: 1341,
       quote:
         "Облигация — эмиссионная ценная бумага, закрепляющая право её владельца на получение от эмитента номинальной стоимости в оговорённый срок.",
     },

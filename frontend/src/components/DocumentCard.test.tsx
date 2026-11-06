@@ -16,14 +16,28 @@ describe("DocumentCard", () => {
   };
 
   it("отображает имя документа и статус", () => {
-    render(<DocumentCard doc={mockDoc} onDelete={() => {}} />);
+    render(
+      <DocumentCard
+        doc={mockDoc}
+        onDelete={() => {}}
+        hasPollingError={false}
+        onRetryPolling={() => {}}
+      />,
+    );
     expect(screen.getByText("test.txt", { exact: false })).toBeInTheDocument();
     expect(screen.getByText("Готов")).toBeInTheDocument();
   });
 
   it("вызывает onDelete при клике на кнопку", () => {
     const handleDelete = vi.fn();
-    render(<DocumentCard doc={mockDoc} onDelete={handleDelete} />);
+    render(
+      <DocumentCard
+        doc={mockDoc}
+        onDelete={handleDelete}
+        hasPollingError={false}
+        onRetryPolling={() => {}}
+      />,
+    );
 
     const button = screen.getByText("Удалить");
     button.click();
