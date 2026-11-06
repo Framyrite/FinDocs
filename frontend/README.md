@@ -1,5 +1,83 @@
-# Frontend
+# FinDocs Frontend
 
-Frontend part of FinDocs.
+Фронтенд-приложение FinDocs (MVP-срез TXT) на React + TypeScript + Vite.
 
-Use this directory for the client application, UI components, styles, frontend logic, and frontend-specific configuration.
+## Требования
+
+- Node.js (LTS версия, рекомендуется 20+)
+- npm (менеджер пакетов)
+
+## Установка и запуск
+
+1. Перейдите в папку `frontend`:
+
+```bash
+cd frontend
+```
+
+2. Установите зависимости:
+
+```bash
+npm install
+```
+
+3. Запустите dev-сервер:
+
+```bash
+npm run dev
+```
+
+4. Откройте браузер по адресу `http://localhost:5173/`.
+
+## Сборка и проверки
+
+```bash
+npm run build   # Сборка проекта (TypeScript + Vite)
+npm run lint    # Проверка кода линтером (ESLint)
+npm test        # Запуск тестов (Vitest)
+npm run format  # Форматирование кода (Prettier)
+```
+
+## Mock-режим и реальный API
+
+- На текущем этапе **Backend API (0.6) существует**, но интеграция с frontend пока не выполнена. Поэтому приложение работает в **mock-режиме**.
+- **Включение/выключение mock-режима:** в файле `src/api/index.ts` через флаг `USE_MOCK`.
+- **Адрес реального API:** задаётся через переменную окружения `VITE_API_BASE_URL` в файле `.env` (шаблон лежит в `.env.example`).
+
+## Реализованные сценарии
+
+- **Документы:** просмотр списка, статусы (`uploaded`, `processing`, `ready`, `error`), поиск по названию, удаление.
+- **Загрузка:** выбор файла, клиентская валидация (только `.txt`, до 10 МБ), имитация обработки (polling статусов).
+- **Чат:** отправка вопроса, состояние ожидания, ответы с источниками, состояния `partial` и `insufficient_info`, техническая ошибка с возможностью повтора.
+- **Область поиска:** выбор между «Все документы» и конкретными (через чекбоксы). Пустой выбор блокирует отправку.
+
+## Используемые API-методы (в mock-режиме)
+
+В соответствии с `mvp-contracts.md` v0.2, клиентский слой эмулирует следующие методы:
+
+- `GET /documents` — получение списка документов.
+- `GET /documents/{id}` — получение документа по ID (используется для polling).
+- `POST /documents` — загрузка TXT-файла (multipart/form-data).
+- `DELETE /documents/{id}` — удаление документа.
+- `POST /chat/ask` — отправка вопроса и получение ответа.
+
+## Ограничения
+
+- **Backend API (0.6) существует**, но интеграция с frontend пока не выполнена. Работа идет в mock-режиме.
+- **Только `.txt`:** поддержка PDF, DOCX, PPTX и OCR — в следующих этапах.
+- **Нет drag-and-drop:** используется стандартное окно выбора файла.
+- **Нет авторизации и истории диалога.**
+- **Строгая валидация структуры ответа API** отложена до этапа интеграции с реальным бэкендом.
+
+## Структура проекта
+
+- `src/api` — клиент для работы с API (и переключатель mock/real).
+- `src/components` — React-компоненты и их тесты.
+- `src/hooks` — кастомные хуки (например, `usePolling`).
+- `src/mocks` — mock-данные и mock-API.
+- `src/types` — TypeScript-типы (соответствуют `mvp-contracts.md`).
+
+## Ссылки
+
+- Макеты Figma: [Ссылка на макет](https://www.figma.com/design/S1gc05o890gHjWVnfQ3jAD/Untitled?node-id=0-1&t=Hqhf4zBU0nGC51bR-1)
+- Контракты API: `mvp-contracts.md` v0.2
