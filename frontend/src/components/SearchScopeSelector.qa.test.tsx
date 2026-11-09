@@ -23,9 +23,9 @@ describe("SearchScopeSelector QA Edge Cases", () => {
       id: "1", filename: "ready.txt", format: "txt", status: "ready",
       error_code: null, error_message: null, size_bytes: 100, created_at: "2026-11-04T10:00:00Z",
     };
-
     render(<SearchScopeSelector documents={[readyDoc]} selectedIds={["1"]} onChange={handleChange} />);
     
+    await userEvent.click(screen.getByText("Выбрано: 1"));
     await userEvent.click(screen.getByText("ready.txt"));
     
     expect(handleChange).toHaveBeenCalledWith([]);

@@ -10,7 +10,6 @@ describe("UploadButton QA Edge Cases", () => {
     const { container } = render(<UploadButton onUpload={handleUpload} />);
     
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    
     const largeFile = new File(["a".repeat(10485761)], "huge.txt", { type: "text/plain" });
     
     fireEvent.change(input, { target: { files: [largeFile] } });
@@ -20,7 +19,7 @@ describe("UploadButton QA Edge Cases", () => {
   });
 
   it("кнопка disabled во время загрузки", () => {
-    render(<UploadButton onUpload={vi.fn()} isUploading={true} />);
+    render(<UploadButton onUpload={vi.fn()} disabled={true} />);
     
     const button = screen.getByRole("button");
     expect(button).toBeDisabled();
