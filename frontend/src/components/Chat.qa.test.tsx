@@ -51,4 +51,11 @@ describe("Chat QA Edge Cases (UI-14, UI-16)", () => {
 
     expect(screen.queryByText("Старый ответ", { exact: false })).not.toBeInTheDocument();
   });
+
+  it("соблюдает границу ввода в 2000 символов", () => {
+    const handleAsk = vi.fn();
+    render(<Chat onAsk={handleAsk} hasReadyDocuments={true} documents={[]} selectedIds={null} onSelectionChange={() => {}} />);
+    const input = screen.getByPlaceholderText("Введите свой вопрос...");
+    expect(input).toHaveAttribute("maxLength", "2000");
+  });
 });
