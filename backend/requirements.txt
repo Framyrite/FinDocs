@@ -5,6 +5,7 @@ pydantic==2.13.5
 pydantic-settings==2.15.0
 tokenizers==0.23.3
 python-multipart==0.0.33
+httpx==0.28.1
 
 # Transitive dependencies pinned to the versions used for verification.
 annotated-doc==0.0.5
