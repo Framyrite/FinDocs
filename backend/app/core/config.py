@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     )
 
     llm_timeout_seconds: float = Field(
-        default=120,
+        default=90,
         gt=0,
     )
 

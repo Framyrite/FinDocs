@@ -95,7 +95,7 @@ cp .env.example .env
 | `FINDOCS_LLM_PROVIDER` | `mock` | `mock` или `ollama` |
 | `FINDOCS_OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Базовый URL Ollama без логина и пароля |
 | `FINDOCS_LLM_MODEL` | `qwen3.5:4b-q4_K_M` | Точный тег установленной модели |
-| `FINDOCS_LLM_TIMEOUT_SECONDS` | `120` | Таймаут HTTP-запроса, секунды |
+| `FINDOCS_LLM_TIMEOUT_SECONDS` | `90` | Таймаут HTTP-запроса, секунды |
 | `FINDOCS_LLM_TEMPERATURE` | `0` | Температура генерации (0–2) |
 | `FINDOCS_LLM_MAX_OUTPUT_TOKENS` | `512` | Лимит генерируемых токенов (`num_predict`) |
 | `FINDOCS_LLM_CONTEXT_TOKENS` | `4096` | Контекстное окно (`num_ctx`) |
@@ -110,7 +110,7 @@ cp .env.example .env
 FINDOCS_LLM_PROVIDER=ollama
 FINDOCS_OLLAMA_BASE_URL=http://127.0.0.1:11434
 FINDOCS_LLM_MODEL=qwen3.5:4b-q4_K_M
-FINDOCS_LLM_TIMEOUT_SECONDS=120
+FINDOCS_LLM_TIMEOUT_SECONDS=90
 FINDOCS_LLM_TEMPERATURE=0
 FINDOCS_LLM_MAX_OUTPUT_TOKENS=512
 FINDOCS_LLM_CONTEXT_TOKENS=4096
@@ -572,9 +572,13 @@ git status -sb
 
 ## Интеграция с frontend
 
-Для локальной разработки используется **Vite dev proxy** на backend `http://127.0.0.1:8000`. Frontend работает с `/documents`, отслеживает переход `uploaded/processing → ready/error`, вызывает `/chat/ask` и показывает предоставленные сервером `quote` и `status`.
+Backend предоставляет HTTP API `/documents` и `/chat/ask`, совместимый с согласованными контрактами MVP.
 
-Внешний контракт остаётся одинаковым в режимах `mock` и `ollama`. Пользовательский интерфейс переключения моделей в Backend 0.7 не реализуется: модель меняют через настройки сервера. Vite proxy предназначен для локальной разработки и не заменяет настройку production-сети.
+**Текущее состояние frontend:** в `frontend/src/api/index.ts` используется `USE_MOCK = true`. Поэтому frontend пока обращается к mock API, а не к настоящему FastAPI. В `frontend/vite.config.ts` также ещё не настроен Vite dev proxy.
+
+Подключение frontend к реальному backend — отдельный этап разработки. Для него потребуется переключить API-клиент на HTTP-запросы и настроить сетевое взаимодействие с FastAPI.
+
+При переходе с `mock` на `ollama` на стороне backend формат `ChatRequest`, `ChatResponse` и `Source` не меняется. Выбор модели осуществляется настройками backend, без отдельного пользовательского интерфейса.
 
 ## Ограничения и безопасность
 
