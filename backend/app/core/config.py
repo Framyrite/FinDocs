@@ -61,6 +61,25 @@ class Settings(BaseSettings):
         gt=0,
     )
 
+    @field_validator("llm_model", mode="before")
+    @classmethod
+    def validate_llm_model(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+
+        if any(not char.isprintable() for char in value):
+            raise ValueError("LLM model tag contains control characters")
+
+        model = value.strip()
+
+        if not model:
+            raise ValueError("LLM model tag must not be blank")
+
+        if any(char.isspace() for char in model):
+            raise ValueError("LLM model tag must not contain whitespace")
+
+        return model
+
     @field_validator("ollama_base_url")
     @classmethod
     def validate_ollama_url(cls, value: HttpUrl) -> HttpUrl:

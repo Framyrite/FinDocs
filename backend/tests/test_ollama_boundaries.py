@@ -21,6 +21,13 @@ from app.llm.ollama import SYSTEM_PROMPT, OllamaLLMAdapter
         {"llm_max_output_tokens": 0},
         {"llm_context_tokens": 0},
         {"llm_model": ""},
+        {"llm_model": " "},
+        {"llm_model": "\t"},
+        {"llm_model": "qwen 3.5:4b"},
+        {"llm_model": "qwen\n3.5:4b"},
+        {"llm_model": "qwen\x003.5:4b"},
+        {"llm_model": "qwen\u200b3.5:4b"},
+        {"llm_model": "qwen3.5:4b\n"},
     ],
 )
 def test_invalid_settings_are_rejected(
@@ -94,3 +101,12 @@ def test_document_instructions_remain_user_data() -> None:
     )
 
     assert answer == "Проверенный ответ."
+
+
+def test_model_tag_trims_outer_spaces() -> None:
+    settings = Settings(
+        _env_file=None,
+        llm_model=" qwen3.5:4b-q4_K_M ",
+    )
+
+    assert settings.llm_model == "qwen3.5:4b-q4_K_M"

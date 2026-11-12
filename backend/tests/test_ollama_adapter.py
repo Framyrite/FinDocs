@@ -77,6 +77,7 @@ def test_model_refusal_and_empty_answer(
         json={
             "done": True,
             "message": {
+                "role": "assistant",
                 "content": json.dumps({"supported": supported, "answer": answer}),
             },
         },
@@ -102,7 +103,7 @@ def test_invalid_model_format(content: str) -> None:
         200,
         json={
             "done": True,
-            "message": {"content": content},
+            "message": {"role": "assistant", "content": content},
         },
     )
 
@@ -123,7 +124,10 @@ def test_invalid_model_format(content: str) -> None:
         httpx.Response(200, json={"done": True}),
         httpx.Response(
             200,
-            json={"done": True, "message": {"content": None}},
+            json={
+                "done": True,
+                "message": {"role": "assistant", "content": None},
+            },
         ),
     ],
 )
@@ -166,3 +170,31 @@ def test_invalid_input_types() -> None:
 
     with pytest.raises(TypeError):
         adapter.generate("Вопрос", None)
+
+
+@pytest.mark.parametrize(
+    "role",
+    [None, "user", "system", "tool", ""],
+)
+def test_invalid_message_role(role: str | None) -> None:
+    message = {
+        "content": json.dumps({"supported": True, "answer": "Корректный ответ."}),
+    }
+
+    if role is not None:
+        message["role"] = role
+
+    response = httpx.Response(
+        200,
+        json={
+            "done": True,
+            "done_reason": "stop",
+            "message": message,
+        },
+    )
+
+    with pytest.raises(
+        LLMUnavailable,
+        match="Invalid Ollama message role",
+    ):
+        make_adapter(response).generate("Вопрос", "Контекст")

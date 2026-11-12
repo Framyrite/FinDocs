@@ -214,6 +214,9 @@ class OllamaLLMAdapter(LLMAdapter):
         if not isinstance(message, dict):
             raise LLMUnavailable("Missing Ollama message")
 
+        if message.get("role") != "assistant":
+            raise LLMUnavailable("Invalid Ollama message role")
+
         content = message.get("content")
         if not isinstance(content, str) or not content.strip():
             raise LLMUnavailable("Empty Ollama response")
