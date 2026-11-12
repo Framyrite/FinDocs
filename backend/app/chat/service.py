@@ -8,6 +8,7 @@ from app.chat.sources import build_sources
 from app.documents.models import Document, DocumentStatus
 from app.documents.repository import DocumentRepository
 from app.llm.adapter import LLMAdapter
+from app.llm.errors import LLMInsufficientContext
 from app.processing.models import ProcessingResult
 from app.retrieval.lexical import LexicalRetriever
 
@@ -168,6 +169,13 @@ class ChatService:
 
             if not answer.strip():
                 raise ValueError("LLM adapter returned an empty answer")
+
+        except LLMInsufficientContext:
+            return ChatResponse(
+                status="insufficient_info",
+                answer=INSUFFICIENT_INFO_ANSWER,
+                sources=[],
+            )
 
         except Exception as exc:
             raise ChatServiceError(

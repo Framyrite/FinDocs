@@ -21,6 +21,7 @@ from app.documents.repository import (
 from app.documents.service import DocumentService
 from app.llm.adapter import LLMAdapter
 from app.llm.mock import MockLLM
+from app.llm.ollama import OllamaLLMAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,12 @@ def create_app(
 ) -> FastAPI:
     """Create an application with injectable settings and dependencies."""
     config = Settings() if settings is None else settings
-    adapter = MockLLM() if llm_adapter is None else llm_adapter
+    if llm_adapter is not None:
+        adapter = llm_adapter
+    elif config.llm_provider == "ollama":
+        adapter = OllamaLLMAdapter(settings=config)
+    else:
+        adapter = MockLLM()
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
