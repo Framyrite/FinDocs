@@ -10,6 +10,12 @@ from app.processing.models import Chunk, DocumentBlock, ProcessingResult
 
 TOP_K = 3
 MIN_COVERAGE = 0.6
+FALLBACK_COVERAGE = 0.5
+MIN_FALLBACK_MATCHES = 3
+
+# Query-only grammatical terms. Stored chunks keep their original normalization.
+QUERY_FILLER_STEMS = frozenset({"был", "были", "было", "каком", "кем", "году"})
+ROMAN_DIGITS = frozenset("IVXLCDM")
 
 STOP_WORDS = frozenset(
     [
@@ -68,6 +74,34 @@ def normalize_stems(text: str) -> list[str]:
     ]
 
 
+def _latin_acronyms(text: str) -> set[str]:
+    """Find technical Latin acronyms, excluding Roman numeral values."""
+    return {
+        word.lower()
+        for word in WORD_PATTERN.findall(text)
+        if 2 <= len(word) <= 5
+        and word.isascii()
+        and word.isalpha()
+        and word.isupper()
+        and not set(word) <= ROMAN_DIGITS
+    }
+
+
+def _missing_named_terms(question: str, corpus_text: str) -> bool:
+    """Avoid fallback when an explicitly named Latin entity is absent."""
+    corpus_lower = corpus_text.casefold()
+    return any(
+        word.casefold() not in corpus_lower
+        for word in WORD_PATTERN.findall(question)
+        if len(word) >= 3 and word.isascii() and word.isalpha() and word.istitle()
+    )
+
+
+def _is_compound(question: str) -> bool:
+    """Treat coordinated questions conservatively during fallback."""
+    return "&" in question or "и" in [word.casefold() for word in WORD_PATTERN.findall(question)]
+
+
 class SearchableDocument(Protocol):
     """A ready document paired with its persisted processing result."""
 
@@ -87,74 +121,118 @@ class RankedChunk:
 
 
 class LexicalRetriever:
-    """Rank stored chunks using deterministic keyword coverage."""
+    """Rank trusted TXT chunks with strict and guarded fallback passes."""
 
     def retrieve(
         self,
         question: str,
         documents: Iterable[SearchableDocument],
     ) -> list[RankedChunk]:
-        """Return up to three chunks with coverage of at least 0.6."""
-        question_stems = set(normalize_stems(question))
+        """Prefer 0.6 coverage; expand only with multiple meaningful matches."""
+        acronyms = _latin_acronyms(question)
+        question_stems = (set(normalize_stems(question)) - QUERY_FILLER_STEMS) | acronyms
 
         if not question_stems:
             return []
 
-        candidates: list[RankedChunk] = []
-
+        # Materialize the iterable once; scope and readiness are never expanded.
+        valid_chunks: list[tuple[Document, DocumentBlock, Chunk, list[str]]] = []
         for selected in documents:
             document = selected.document
-
             if document.status != DocumentStatus.READY:
                 continue
 
             blocks_by_id = {block.id: block for block in selected.result.blocks}
-
             for chunk in selected.result.chunks:
                 block = blocks_by_id.get(chunk.block_id)
-
-                if block is None:
+                if (
+                    block is None
+                    or chunk.document_id != document.id
+                    or block.document_id != document.id
+                ):
+                    continue
+                # Never rank corrupted chunk text as evidence.
+                if block.content[chunk.start_char : chunk.end_char] != chunk.content:
                     continue
 
-                if chunk.document_id != document.id or block.document_id != document.id:
-                    continue
+                terms = normalize_stems(chunk.content)
+                for acronym in _latin_acronyms(chunk.content):
+                    if acronym not in terms:
+                        terms.append(acronym)
+                valid_chunks.append((document, block, chunk, terms))
 
-                chunk_stems = normalize_stems(chunk.content)
-                chunk_set = set(chunk_stems)
+        if not valid_chunks:
+            return []
 
-                matched_stems = question_stems & chunk_set
-                coverage = len(matched_stems) / len(question_stems)
+        named_term_missing = _missing_named_terms(
+            question,
+            "\n".join(chunk.content for _, _, chunk, _ in valid_chunks),
+        )
+        compound = _is_compound(question)
+        strict: list[RankedChunk] = []
+        fallback: list[RankedChunk] = []
+        anchor_hits: dict[tuple[object, object], int] = {}
 
-                if coverage < MIN_COVERAGE:
-                    continue
+        for document, block, chunk, terms in valid_chunks:
+            matched = question_stems & set(terms)
+            if not matched:
+                continue
 
-                match_count = sum(stem in question_stems for stem in chunk_stems)
+            coverage = len(matched) / len(question_stems)
+            count = sum(term in question_stems for term in terms)
+            acronym_hits = len(acronyms & matched)
+            result = RankedChunk(
+                document=document,
+                block=block,
+                chunk=chunk,
+                coverage=coverage,
+                match_count=count,
+            )
+            anchor_hits[(document.id, chunk.id)] = acronym_hits
 
-                candidates.append(
-                    RankedChunk(
-                        document=document,
-                        block=block,
-                        chunk=chunk,
-                        coverage=coverage,
-                        match_count=match_count,
-                    )
+            if coverage >= MIN_COVERAGE:
+                strict.append(result)
+            elif (
+                coverage >= FALLBACK_COVERAGE
+                and len(matched) >= MIN_FALLBACK_MATCHES
+                and not named_term_missing
+                and (
+                    acronym_hits == len(acronyms)
+                    if acronyms and compound
+                    else acronym_hits > 0 or not compound
                 )
+            ):
+                fallback.append(result)
+
+        # Keep strict results, but allow a missing acronym's evidence to enter
+        # the pool even when generic strict matches exist (e.g. FIFO vs SJF).
+        best_strict_acronyms = max(
+            (anchor_hits[(item.document.id, item.chunk.id)] for item in strict),
+            default=0,
+        )
+        use_fallback = not strict or (bool(acronyms) and best_strict_acronyms < len(acronyms))
+
+        candidates = strict + (fallback if use_fallback else [])
+
+        # Prefer explicitly requested acronyms over generic keyword matches.
+        if acronyms:
+            anchored = [
+                item for item in candidates if anchor_hits[(item.document.id, item.chunk.id)] > 0
+            ]
+            if anchored:
+                candidates = anchored
 
         # Stable sorting, applied from lowest to highest priority.
         candidates.sort(key=lambda item: item.chunk.position)
         candidates.sort(key=lambda item: item.block.position)
         candidates.sort(key=lambda item: item.document.id)
-        candidates.sort(
-            key=lambda item: item.document.created_at,
-            reverse=True,
-        )
-        candidates.sort(
-            key=lambda item: item.match_count,
-            reverse=True,
-        )
-        candidates.sort(
-            key=lambda item: item.coverage,
-            reverse=True,
-        )
+        candidates.sort(key=lambda item: item.document.created_at, reverse=True)
+        candidates.sort(key=lambda item: item.match_count, reverse=True)
+        candidates.sort(key=lambda item: item.coverage, reverse=True)
+        if acronyms:
+            candidates.sort(
+                key=lambda item: anchor_hits[(item.document.id, item.chunk.id)],
+                reverse=True,
+            )
 
         return candidates[:TOP_K]
