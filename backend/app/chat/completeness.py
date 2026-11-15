@@ -79,6 +79,17 @@ def _matching_person(expected: tuple[str, str], actual: tuple[str, str]) -> bool
     return True
 
 
+def _all_people_match(
+    expected: set[tuple[str, str]],
+    actual: set[tuple[str, str]],
+) -> bool:
+    """Check all people without accepting merely a matching title."""
+    for person in expected:
+        if not any(_matching_person(person, item) for item in actual):
+            return False
+    return True
+
+
 def _event_object_terms(question: str) -> set[str]:
     """Use the event's noun phrase, excluding descriptive clauses after commas."""
     match = EVENT_OBJECT_PATTERN.search(question)
@@ -118,11 +129,7 @@ def has_supported_actor_and_year(
             ):
                 continue
             if people:
-                mentioned = _people(sentence)
-                if all(
-                    any(_matching_person(person, item) for item in mentioned)
-                    for person in people
-                ):
+                if _all_people_match(people, _people(sentence)):
                     return True
             elif institutions & stems:
                 return True
