@@ -262,3 +262,25 @@ def test_uninvented_year_does_not_justify_invented_payment() -> None:
     assert any("2025" in source.quote for source in sources)
     assert not citations_support_answer(question, answer, sources)
     assert_exact(sources, ranked)
+
+
+def test_question_number_requires_document_evidence() -> None:
+    ranked = make_ranked("Условия кредита описаны в договоре. Сумма платежа не указана.")
+    question = "Правда ли, что по договору перечислили 900000 рублей?"
+    answer = "По договору перечислили 900000 рублей."
+
+    sources = build_answer_sources(prepare_llm_context([ranked]), question, answer)
+    assert sources
+    assert not citations_support_answer(question, answer, sources)
+    assert_exact(sources, ranked)
+
+
+def test_question_number_is_accepted_when_cited() -> None:
+    ranked = make_ranked("По договору перечислили 900000 рублей.")
+    question = "Правда ли, что по договору перечислили 900000 рублей?"
+    answer = "По договору перечислили 900000 рублей."
+
+    sources = build_answer_sources(prepare_llm_context([ranked]), question, answer)
+    assert sources
+    assert citations_support_answer(question, answer, sources)
+    assert_exact(sources, ranked)

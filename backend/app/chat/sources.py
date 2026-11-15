@@ -227,7 +227,7 @@ def build_answer_sources(
     key_acronyms = question_acronyms | _latin_acronyms(first_answer)
     focused_terms = answer_terms - question_terms
     number_pattern = re.compile(r"(?<!\w)\d{2,}(?!\w)")
-    introduced_numbers = set(number_pattern.findall(answer)) - set(number_pattern.findall(question))
+    answer_numbers = set(number_pattern.findall(answer))
     if not answer_terms:
         return []
 
@@ -262,7 +262,7 @@ def build_answer_sources(
                         if question_acronyms and not (
                             key_acronyms & quote_terms
                             or (question_terms & answer_terms & quote_terms)
-                            or (introduced_numbers & set(number_pattern.findall(quote)))
+                            or (answer_numbers & set(number_pattern.findall(quote)))
                         ):
                             continue
                         terms = quote_terms & answer_terms
@@ -334,18 +334,18 @@ def build_answer_sources(
         covered_terms.update(terms)
         return True
 
-    # Prioritize quotes for new numerical facts before the TOP_K slots fill up.
+    # Prioritize numerical facts, even when already present in the question.
     # Only the already-validated, actually transmitted spans are eligible.
-    if introduced_numbers:
+    if answer_numbers:
         number_options = []
         for option in options:
             candidate, left, right, _, _ = option
             quote_numbers = set(number_pattern.findall(candidate.block.content[left:right]))
-            if quote_numbers & introduced_numbers:
+            if quote_numbers & answer_numbers:
                 number_options.append((option, quote_numbers))
-        number_options.sort(key=lambda item: (-len(item[1] & introduced_numbers), -item[0][4]))
+        number_options.sort(key=lambda item: (-len(item[1] & answer_numbers), -item[0][4]))
 
-        remaining_numbers = introduced_numbers.copy()
+        remaining_numbers = answer_numbers.copy()
         for option, quote_numbers in number_options:
             if not remaining_numbers or len(sources) >= TOP_K:
                 break
@@ -447,6 +447,5 @@ def citations_support_answer(question: str, answer: str, sources: Sequence[Sourc
     # decorative citation about the question's topic.
     number_pattern = r"(?<!\w)\d{2,}(?!\w)"
     numbers = set(re.findall(number_pattern, answer))
-    numbers -= set(re.findall(number_pattern, question))
     cited_numbers = set(re.findall(number_pattern, quoted))
     return numbers <= cited_numbers
