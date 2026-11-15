@@ -84,10 +84,7 @@ def _all_people_match(
     actual: set[tuple[str, str]],
 ) -> bool:
     """Check all people without accepting merely a matching title."""
-    for person in expected:
-        if not any(_matching_person(person, item) for item in actual):
-            return False
-    return True
+    return all(any(_matching_person(person, item) for item in actual) for person in expected)
 
 
 def _event_object_terms(question: str) -> set[str]:
