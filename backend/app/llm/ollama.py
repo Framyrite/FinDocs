@@ -1,8 +1,11 @@
 """Local Ollama adapter with structured response validation."""
 
+import math
+
 import httpx
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from app.chat.context import MAX_LLM_CONTEXT_CHARS
 from app.core.config import Settings
 from app.llm.adapter import LLMAdapter
 from app.llm.errors import LLMInsufficientContext, LLMUnavailable
@@ -156,6 +159,17 @@ class OllamaLLMAdapter(LLMAdapter):
     ) -> None:
         self._settings = settings
         self._transport = transport
+
+    def context_char_budget(self, question: str) -> int:
+        """Estimate a bounded evidence allowance using the configured num_ctx.
+
+        Reserve the model's output, system prompt, question and chat wrapper.
+        This is a character/token approximation, not exact model tokenization.
+        """
+        estimated_fixed_tokens = math.ceil((len(SYSTEM_PROMPT) + len(question) + 200) / 2.5)
+        reserved = self._settings.llm_max_output_tokens + 256
+        room = self._settings.llm_context_tokens - reserved - estimated_fixed_tokens
+        return max(0, min(MAX_LLM_CONTEXT_CHARS, int(room * 2.5)))
 
     def generate(self, question: str, context: str) -> str:
         if not isinstance(question, str) or not isinstance(context, str):

@@ -3,12 +3,23 @@
 from dataclasses import dataclass
 from uuid import UUID
 
+from app.chat.completeness import has_supported_actor_and_year
+from app.chat.context import (
+    MAX_LLM_CONTEXT_CHARS,
+    expand_context_candidates,
+    prepare_llm_context,
+)
 from app.chat.models import ChatResponse
-from app.chat.sources import build_sources
+from app.chat.sources import (
+    build_answer_sources,
+    build_sources,
+    citations_support_answer,
+)
 from app.documents.models import Document, DocumentStatus
 from app.documents.repository import DocumentRepository
 from app.llm.adapter import LLMAdapter
 from app.llm.errors import LLMInsufficientContext
+from app.llm.mock import MockLLM
 from app.processing.models import ProcessingResult
 from app.retrieval.lexical import LexicalRetriever
 
@@ -144,19 +155,43 @@ class ChatService:
             documents,
         )
 
-        sources = build_sources(
-            ranked_chunks,
-            question,
-        )
-
-        if not sources:
+        if not ranked_chunks:
             return ChatResponse(
                 status="insufficient_info",
                 answer=INSUFFICIENT_INFO_ANSWER,
                 sources=[],
             )
 
-        context = "\n".join(source.quote for source in sources)
+        prepared = None
+        # Preserve the deterministic [MOCK] answer/source contract.
+        if isinstance(self._llm_adapter, MockLLM):
+            sources = build_sources(ranked_chunks, question)
+            if not sources:
+                return ChatResponse(
+                    status="insufficient_info",
+                    answer=INSUFFICIENT_INFO_ANSWER,
+                    sources=[],
+                )
+            context = "\n".join(source.quote for source in sources)
+        else:
+            context_candidates = expand_context_candidates(ranked_chunks, documents, question)
+            budget_fn = getattr(self._llm_adapter, "context_char_budget", None)
+            max_chars = budget_fn(question) if callable(budget_fn) else MAX_LLM_CONTEXT_CHARS
+            if max_chars <= 0:
+                return ChatResponse(
+                    status="insufficient_info",
+                    answer=INSUFFICIENT_INFO_ANSWER,
+                    sources=[],
+                )
+            prepared = prepare_llm_context(context_candidates, max_chars=max_chars)
+            context = prepared.text
+
+            if not context:
+                return ChatResponse(
+                    status="insufficient_info",
+                    answer=INSUFFICIENT_INFO_ANSWER,
+                    sources=[],
+                )
 
         try:
             answer = self._llm_adapter.generate(
@@ -183,6 +218,30 @@ class ChatService:
                 "llm_unavailable",
                 "Сервис генерации ответа временно недоступен.",
             ) from exc
+
+        if prepared is not None:
+            # A composite actor/year answer needs direct evidence for both parts.
+            passages = [
+                entry.candidate.block.content[left:right]
+                for entry in prepared.entries
+                for left, right in entry.ranges
+            ]
+            if not has_supported_actor_and_year(question, answer, passages):
+                return ChatResponse(
+                    status="insufficient_info",
+                    answer=INSUFFICIENT_INFO_ANSWER,
+                    sources=[],
+                )
+
+        if prepared is not None:
+            # The citation must support an answer fact, not just repeat the question.
+            sources = build_answer_sources(prepared, question, answer)
+            if not citations_support_answer(question, answer, sources):
+                return ChatResponse(
+                    status="insufficient_info",
+                    answer=INSUFFICIENT_INFO_ANSWER,
+                    sources=[],
+                )
 
         return ChatResponse(
             status="answered",
