@@ -41,6 +41,9 @@ jobs:
       - name: Run Ruff Linter
         run: python -m ruff check . ../tests/
 
+      - name: Show Ruff formatting diff (temporary)
+        run: python -m ruff format --diff app/chat/completeness.py || true
+
       - name: Run Ruff Formatter Check
         run: python -m ruff format --check . ../tests/
 
