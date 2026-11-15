@@ -16,6 +16,7 @@ MIN_FALLBACK_MATCHES = 3
 # Query-only grammatical terms. Stored chunks keep their original normalization.
 QUERY_FILLER_STEMS = frozenset({"был", "были", "было", "каком", "кем", "году"})
 ROMAN_DIGITS = frozenset("IVXLCDM")
+ACRONYM_WORD = re.compile(r"([A-Z]{2,5})(?:[1-9])?", re.ASCII)
 
 STOP_WORDS = frozenset(
     [
@@ -75,16 +76,16 @@ def normalize_stems(text: str) -> list[str]:
 
 
 def _latin_acronyms(text: str) -> set[str]:
-    """Find technical Latin acronyms, excluding Roman numeral values."""
-    return {
-        word.lower()
-        for word in WORD_PATTERN.findall(text)
-        if 2 <= len(word) <= 5
-        and word.isascii()
-        and word.isalpha()
-        and word.isupper()
-        and not set(word) <= ROMAN_DIGITS
-    }
+    """Find Latin abbreviations, including a trailing one-digit footnote."""
+    acronyms = set()
+    for word in WORD_PATTERN.findall(text):
+        match = ACRONYM_WORD.fullmatch(word)
+        if match is None:
+            continue
+        acronym = match.group(1)
+        if not set(acronym) <= ROMAN_DIGITS:
+            acronyms.add(acronym.lower())
+    return acronyms
 
 
 def _missing_named_terms(question: str, corpus_text: str) -> bool:

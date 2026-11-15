@@ -3,11 +3,13 @@
 import re
 from collections.abc import Sequence
 
+from app.chat.context import PreparedContext
 from app.chat.models import Source
 from app.retrieval.lexical import (
     TOP_K,
     WORD_PATTERN,
     RankedChunk,
+    _latin_acronyms,
     normalize_stems,
 )
 
@@ -129,4 +131,234 @@ def build_sources(
             )
         )
 
+    return sources
+
+
+def _answer_sentence_ranges(text: str) -> list[tuple[int, int]]:
+    """Locate sentence-like ranges, keeping dates such as '1534 г.' intact."""
+    spans: list[tuple[int, int]] = []
+    left = 0
+
+    def append_span(right: int) -> None:
+        nonlocal left
+        start = left
+        end = right
+        while start < end and text[start].isspace():
+            start += 1
+        while end > start and text[end - 1].isspace():
+            end -= 1
+        if end > start:
+            spans.append((start, end))
+        left = right
+
+    for index, char in enumerate(text):
+        if char in "\r\n":
+            append_span(index)
+            left = index + 1
+            continue
+        if char not in ".!?":
+            continue
+        if char == "." and re.search(r"\b\d{4}\s+г$", text[max(0, index - 12) : index]):
+            continue
+        if index + 1 < len(text) and not text[index + 1].isspace():
+            continue
+        append_span(index + 1)
+
+    append_span(len(text))
+    return spans
+
+
+def _answer_terms(text: str) -> set[str]:
+    """Use normal stems plus two-letter uppercase technical abbreviations."""
+    return set(normalize_stems(text)) | _latin_acronyms(text)
+
+
+def _quote_windows(
+    text: str,
+    left: int,
+    right: int,
+    focused_terms: set[str],
+) -> list[tuple[int, int]]:
+    """Extract exact ranges, including focused windows for long sentences."""
+    if right - left <= MAX_QUOTE_LENGTH:
+        return [(left, right)]
+
+    windows: set[tuple[int, int]] = set()
+    for word in WORD_PATTERN.finditer(text, left, right):
+        if not (_answer_terms(word.group()) & focused_terms):
+            continue
+        start = min(max(left, word.start() - 90), right - MAX_QUOTE_LENGTH)
+        end = start + MAX_QUOTE_LENGTH
+        # Do not show clipped words if a 300-character window cuts through one.
+        if start > left and text[start - 1].isalnum() and text[start].isalnum():
+            while start < end and text[start].isalnum():
+                start += 1
+            while start < end and text[start].isspace():
+                start += 1
+        if end < right and text[end - 1].isalnum() and text[end].isalnum():
+            while end > start and text[end - 1].isalnum():
+                end -= 1
+            while end > start and text[end - 1].isspace():
+                end -= 1
+        if end > start:
+            windows.add((start, end))
+
+    return sorted(windows)
+
+
+def build_answer_sources(
+    prepared: PreparedContext,
+    question: str,
+    answer: str,
+) -> list[Source]:
+    """Choose exact, answer-relevant quotes strictly from transmitted spans.
+
+    Lexical similarity ranks excerpts; it does not prove logical entailment.
+    """
+    answer_terms = _answer_terms(answer)
+    question_terms = _answer_terms(question)
+    question_acronyms = _latin_acronyms(question)
+    focused_terms = answer_terms - question_terms
+    if not answer_terms:
+        return []
+
+    # Explanatory phrasing helps questions asking for a cause, not just a topic.
+    why_question = bool(re.search(r"\b(почему|зачем|сложно|причина)\b|из-за", question.lower()))
+    explanatory = frozenset({"невоз", "сложн", "позво", "необх", "благо", "поэто", "причи"})
+    quoted_phrases = re.findall(r"[«\"]([^»\"]+)[»\"]", question)
+    named_terms = set().union(*(_answer_terms(item) for item in quoted_phrases))
+
+    # (candidate, absolute block-relative start/end, present answer terms, score)
+    options: list[tuple[RankedChunk, int, int, set[str], float]] = []
+    for entry in prepared.entries:
+        candidate = entry.candidate
+        block = candidate.block
+        for range_start, range_end in entry.ranges:
+            text = block.content[range_start:range_end]
+            sentences = _answer_sentence_ranges(text)
+            for index in range(len(sentences)):
+                for step in (1, 2, 3):
+                    if index + step > len(sentences):
+                        break
+                    left = sentences[index][0]
+                    right = sentences[index + step - 1][1]
+                    # Keep adjacent sentences from one paragraph only.
+                    if "\n" in text[left:right]:
+                        break
+                    for start, end in _quote_windows(
+                        text, left, right, focused_terms or answer_terms
+                    ):
+                        quote = text[start:end]
+                        quote_terms = _answer_terms(quote)
+                        if question_acronyms and not (question_acronyms & quote_terms):
+                            continue
+                        terms = quote_terms & answer_terms
+                        exclusive = terms & focused_terms
+                        raw_score = 4 * len(exclusive) + len(terms)
+                        if why_question:
+                            raw_score += 7 * min(2, len(quote_terms & explanatory))
+                        if named_terms and named_terms <= quote_terms:
+                            raw_score += 12
+                        # Normalize for length: a short precise explanation must
+                        # not lose to a long list of unrelated keyword mentions.
+                        score = raw_score * 200 / max(160, len(quote))
+                        if score:
+                            options.append(
+                                (
+                                    candidate,
+                                    range_start + start,
+                                    range_start + end,
+                                    terms,
+                                    score,
+                                )
+                            )
+
+    # When the question quotes a term, prefer evidence naming that term.
+    options.sort(
+        key=lambda item: (
+            -int(
+                bool(named_terms)
+                and named_terms <= _answer_terms(item[0].block.content[item[1] : item[2]])
+            ),
+            -item[4],
+            item[1],
+            str(item[0].chunk.id),
+        )
+    )
+
+    sources: list[Source] = []
+    covered_terms: set[str] = set()
+    seen_ranges: set[tuple[object, int, int]] = set()
+    for candidate, left, right, terms, _ in options:
+        novel = terms - covered_terms
+        if sources and not novel:
+            continue
+        if sources and not ((novel & focused_terms) or len(novel) >= 2):
+            continue
+
+        document = candidate.document
+        block = candidate.block
+        doc_start = block.start_char + left
+        doc_end = block.start_char + right
+        range_key = (document.id, doc_start, doc_end)
+        if range_key in seen_ranges:
+            continue
+        if any(
+            source.document_id == document.id
+            and max(source.start_char, doc_start) < min(source.end_char, doc_end)
+            and (min(source.end_char, doc_end) - max(source.start_char, doc_start))
+            > 0.7 * min(source.end_char - source.start_char, doc_end - doc_start)
+            for source in sources
+        ):
+            continue
+        seen_ranges.add(range_key)
+        sources.append(
+            Source(
+                document_id=document.id,
+                filename=document.filename,
+                block_id=block.id,
+                chunk_id=candidate.chunk.id,
+                start_char=doc_start,
+                end_char=doc_end,
+                quote=block.content[left:right],
+            )
+        )
+        covered_terms.update(terms)
+        if len(sources) >= TOP_K:
+            break
+
+    return sources
+
+
+def build_context_sources(prepared: PreparedContext, question: str) -> list[Source]:
+    """Fallback to query citations restricted to what the model actually read."""
+    question_terms = set(normalize_stems(question))
+    if not question_terms:
+        return []
+
+    sources: list[Source] = []
+    for entry in prepared.entries:
+        candidate = entry.candidate
+        block = candidate.block
+        for left, right in entry.ranges:
+            text = block.content[left:right]
+            matched = _quote_from_chunk(text, question_terms)
+            if matched is None:
+                continue
+            quote, offset = matched
+            start = block.start_char + left + offset
+            sources.append(
+                Source(
+                    document_id=candidate.document.id,
+                    filename=candidate.document.filename,
+                    block_id=block.id,
+                    chunk_id=candidate.chunk.id,
+                    start_char=start,
+                    end_char=start + len(quote),
+                    quote=quote,
+                )
+            )
+            break
+        if len(sources) >= TOP_K:
+            break
     return sources
