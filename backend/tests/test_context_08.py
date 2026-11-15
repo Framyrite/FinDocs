@@ -126,7 +126,7 @@ class RecordingLLM(LLMAdapter):
 
     def generate(self, question: str, context: str) -> str:
         self.context = context
-        return "Ответ по документу."
+        return "Кредит приносит процент."
 
 
 def test_chat_service_sends_full_chunk_to_non_mock_adapter(tmp_path: Path) -> None:
