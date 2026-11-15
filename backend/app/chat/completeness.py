@@ -120,9 +120,7 @@ def has_supported_actor_and_year(
         for sentence in _sentences(passage):
             stems = _stems(sentence)
             if not (
-                years & set(YEAR_PATTERN.findall(sentence))
-                and actions & stems
-                and target <= stems
+                years & set(YEAR_PATTERN.findall(sentence)) and actions & stems and target <= stems
             ):
                 continue
             if people:
