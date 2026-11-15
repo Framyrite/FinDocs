@@ -229,3 +229,36 @@ def test_unsupported_amount_is_not_confirmed_by_generic_quote() -> None:
         "По договору перечислили 900000 рублей.",
         sources,
     )
+
+
+def test_p02_numeric_range_is_cited_and_answer_stays_supported() -> None:
+    """P02: Qwen's 10–100 ms claim is in context, so it must be cited."""
+    text = (QA_DIR / "на_русском.txt").read_text(encoding="utf-8")
+    start = text.index("Round Robin (RR)")
+    ranked = make_ranked(text[start : start + 1500], block_start=start)
+    question = "В чём заключается главное различие между алгоритмами FCFS и Round Robin (RR)?"
+    answer = (
+        "Алгоритм FCFS является невытесняющим, а Round Robin (RR) — вытесняющим. "
+        "Процесс получает фиксированный квант времени (обычно 10–100 мс)."
+    )
+    sources = build_answer_sources(prepare_llm_context([ranked]), question, answer)
+    assert sources
+    assert any("10" in source.quote and "100" in source.quote for source in sources)
+    assert citations_support_answer(question, answer, sources)
+    assert 1 <= len(sources) <= 3
+    assert_exact(sources, ranked)
+
+
+def test_uninvented_year_does_not_justify_invented_payment() -> None:
+    """A correct quoted year must not legitimize a fabricated amount."""
+    ranked = make_ranked(
+        "Условия кредита определены договором. В 2025 году договор пересматривался. "
+        "Сумма платежа в документах не указана."
+    )
+    question = "Какие условия кредита?"
+    answer = "В 2025 году по договору перечислили 900000 рублей."
+    sources = build_answer_sources(prepare_llm_context([ranked]), question, answer)
+    assert sources
+    assert any("2025" in source.quote for source in sources)
+    assert not citations_support_answer(question, answer, sources)
+    assert_exact(sources, ranked)

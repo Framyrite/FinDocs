@@ -226,6 +226,8 @@ def build_answer_sources(
     )
     key_acronyms = question_acronyms | _latin_acronyms(first_answer)
     focused_terms = answer_terms - question_terms
+    number_pattern = re.compile(r"(?<!\w)\d{2,}(?!\w)")
+    introduced_numbers = set(number_pattern.findall(answer)) - set(number_pattern.findall(question))
     if not answer_terms:
         return []
 
@@ -260,6 +262,7 @@ def build_answer_sources(
                         if question_acronyms and not (
                             key_acronyms & quote_terms
                             or (question_terms & answer_terms & quote_terms)
+                            or (introduced_numbers & set(number_pattern.findall(quote)))
                         ):
                             continue
                         terms = quote_terms & answer_terms
@@ -330,6 +333,24 @@ def build_answer_sources(
         )
         covered_terms.update(terms)
         return True
+
+    # Prioritize quotes for new numerical facts before the TOP_K slots fill up.
+    # Only the already-validated, actually transmitted spans are eligible.
+    if introduced_numbers:
+        number_options = []
+        for option in options:
+            candidate, left, right, _, _ = option
+            quote_numbers = set(number_pattern.findall(candidate.block.content[left:right]))
+            if quote_numbers & introduced_numbers:
+                number_options.append((option, quote_numbers))
+        number_options.sort(key=lambda item: (-len(item[1] & introduced_numbers), -item[0][4]))
+
+        remaining_numbers = introduced_numbers.copy()
+        for option, quote_numbers in number_options:
+            if not remaining_numbers or len(sources) >= TOP_K:
+                break
+            if remaining_numbers & quote_numbers and add_option(option):
+                remaining_numbers -= quote_numbers
 
     # Reserve evidence for acronyms requested by the user and those that the
     # answer introduces (for D02: FIFO in the question and FCFS in the answer).
