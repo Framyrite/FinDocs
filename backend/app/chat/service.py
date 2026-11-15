@@ -4,12 +4,16 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from app.chat.completeness import has_supported_actor_and_year
-from app.chat.context import expand_context_candidates, prepare_llm_context
+from app.chat.context import (
+    MAX_LLM_CONTEXT_CHARS,
+    expand_context_candidates,
+    prepare_llm_context,
+)
 from app.chat.models import ChatResponse
 from app.chat.sources import (
     build_answer_sources,
-    build_context_sources,
     build_sources,
+    citations_support_answer,
 )
 from app.documents.models import Document, DocumentStatus
 from app.documents.repository import DocumentRepository
@@ -151,12 +155,7 @@ class ChatService:
             documents,
         )
 
-        sources = build_sources(
-            ranked_chunks,
-            question,
-        )
-
-        if not sources:
+        if not ranked_chunks:
             return ChatResponse(
                 status="insufficient_info",
                 answer=INSUFFICIENT_INFO_ANSWER,
@@ -164,12 +163,29 @@ class ChatService:
             )
 
         prepared = None
-        # MockLLM's public answer format deliberately uses citation lines.
+        # Preserve the deterministic [MOCK] answer/source contract.
         if isinstance(self._llm_adapter, MockLLM):
+            sources = build_sources(ranked_chunks, question)
+            if not sources:
+                return ChatResponse(
+                    status="insufficient_info",
+                    answer=INSUFFICIENT_INFO_ANSWER,
+                    sources=[],
+                )
             context = "\n".join(source.quote for source in sources)
         else:
             context_candidates = expand_context_candidates(ranked_chunks, documents, question)
-            prepared = prepare_llm_context(context_candidates)
+            budget_fn = getattr(self._llm_adapter, "context_char_budget", None)
+            max_chars = (
+                budget_fn(question) if callable(budget_fn) else MAX_LLM_CONTEXT_CHARS
+            )
+            if max_chars <= 0:
+                return ChatResponse(
+                    status="insufficient_info",
+                    answer=INSUFFICIENT_INFO_ANSWER,
+                    sources=[],
+                )
+            prepared = prepare_llm_context(context_candidates, max_chars=max_chars)
             context = prepared.text
 
             if not context:
@@ -220,10 +236,14 @@ class ChatService:
                 )
 
         if prepared is not None:
-            # Only cite text actually transmitted to the LLM, including overlap.
+            # The citation must support an answer fact, not just repeat the question.
             sources = build_answer_sources(prepared, question, answer)
-            if not sources:
-                sources = build_context_sources(prepared, question)
+            if not citations_support_answer(question, answer, sources):
+                return ChatResponse(
+                    status="insufficient_info",
+                    answer=INSUFFICIENT_INFO_ANSWER,
+                    sources=[],
+                )
 
         return ChatResponse(
             status="answered",

@@ -25,9 +25,9 @@ def _matching_positions(
     positions: list[int] = []
 
     for word in WORD_PATTERN.finditer(sentence):
-        stems = normalize_stems(word.group())
+        stems = _answer_terms(word.group())
 
-        if stems and stems[0] in question_stems:
+        if stems & question_stems:
             positions.append(word.start())
 
     return positions
@@ -75,7 +75,7 @@ def build_sources(
     question: str,
 ) -> list[Source]:
     """Create real sources with absolute Unicode character offsets."""
-    question_stems = set(normalize_stems(question))
+    question_stems = _answer_terms(question)
 
     if not question_stems:
         return []
@@ -406,3 +406,26 @@ def build_context_sources(prepared: PreparedContext, question: str) -> list[Sour
         if len(sources) >= TOP_K:
             break
     return sources
+
+
+def citations_support_answer(question: str, answer: str, sources: Sequence[Source]) -> bool:
+    """Require answer-specific citation overlap, including new numerical facts.
+
+    Lexical overlap is not a proof of semantic entailment.
+    """
+    if not sources:
+        return False
+
+    quoted = "\n".join(source.quote for source in sources)
+    focused = _answer_terms(answer) - _answer_terms(question)
+    cited_terms = _answer_terms(quoted)
+    if focused and not focused & cited_terms:
+        return False
+
+    # Prevent a model's invented monetary amount/year from acquiring a
+    # decorative citation about the question's topic.
+    number_pattern = r"(?<!\w)\d{2,}(?!\w)"
+    numbers = set(re.findall(number_pattern, answer))
+    numbers -= set(re.findall(number_pattern, question))
+    cited_numbers = set(re.findall(number_pattern, quoted))
+    return numbers <= cited_numbers

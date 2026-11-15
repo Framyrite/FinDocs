@@ -2,7 +2,7 @@
 
 Backend FinDocs на **Python 3.12** и **FastAPI**: загрузка и обработка TXT-документов, лексический поиск по сохранённым чанкам, ответы с проверяемыми цитатами и опциональная локальная генерация через **Ollama**.
 
-**Текущий этап — Backend 0.7.** Приложение поддерживает два режима генерации:
+**Текущий этап — Backend 0.8.** Приложение поддерживает два режима генерации:
 
 - **`mock` (по умолчанию)** — детерминированный ответ `[MOCK]` по найденным цитатам, без запущенной модели;
 - **`ollama`** — ответ локальной LLM на основании найденных фрагментов TXT.
@@ -16,6 +16,7 @@ Backend FinDocs на **Python 3.12** и **FastAPI**: загрузка и обр�
 | Backend 0.5 | `app/documents/`, `app/processing/`, `app/api/documents.py` | Загрузка, файловое хранение, обработка, список, статусы и удаление TXT |
 | Backend 0.6 | `app/retrieval/`, `app/chat/`, `app/llm/mock.py` | `POST /chat/ask`, лексическое ранжирование, точные источники, MockLLM |
 | Backend 0.7 | `app/llm/ollama.py`, `app/llm/errors.py`, настройки и DI | Локальная LLM, структурированный ответ, отказ по недостатку данных, обработка ошибок |
+| Backend 0.8 | `app/retrieval/lexical.py`, `app/chat/context.py`, `app/chat/sources.py`, `app/chat/completeness.py` | Лексический fallback, расширенный контекст, улучшенные доказательные цитаты и узкая проверка составных ответов |
 
 Публичный HTTP API сохраняет контракт `mvp-contracts.md` v0.2. Выбор LLM не меняет формат `ChatRequest`, `ChatResponse` или `Source`.
 

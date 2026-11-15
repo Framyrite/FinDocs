@@ -89,3 +89,15 @@ def test_unlinked_actor_and_year_stays_conservative() -> None:
     ]
     answer = "Договор был подписан комиссией в 2025 году."
     assert not has_supported_actor_and_year(question, answer, context)
+
+
+def test_henry_vii_is_not_henry_viii() -> None:
+    context = ["В 1534 году король Генрих VIII принял акт о супрематии."]
+    answer = "Акт о супрематии был принят Генрихом VII в 1534 году."
+    assert not has_supported_actor_and_year(QUESTION, answer, context)
+
+
+def test_correct_actor_wrong_event_is_not_supported() -> None:
+    context = ["В 1534 году король Генрих VIII принял закон о налогах."]
+    answer = "Акт о супрематии был принят Генрихом VIII в 1534 году."
+    assert not has_supported_actor_and_year(QUESTION, answer, context)

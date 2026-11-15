@@ -7,8 +7,14 @@ from collections.abc import Sequence
 YEAR_PATTERN = re.compile(r"\b[12]\d{3}\b")
 ACTOR_QUESTION = re.compile(r"\b(?:кто|кем)\b", re.IGNORECASE)
 YEAR_QUESTION = re.compile(r"\bв\s+каком\s+году\b", re.IGNORECASE)
-NAME_PATTERN = re.compile(r"\b([А-ЯЁ][а-яё]+)\s+(?:[А-ЯЁ][а-яё]+|[IVXLCDM]{1,8})\b")
+NAME_PATTERN = re.compile(r"\b([А-ЯЁ][а-яё]+)\s+([А-ЯЁ][а-яё]+|[IVXLCDM]{1,8})\b")
 WORD_PATTERN = re.compile(r"[^\W_]+", re.UNICODE)
+EVENT_OBJECT_PATTERN = re.compile(
+    r"\b(?:принят\w*|подписан\w*|создан\w*|основан\w*|"
+    r"утвержд\w*|построен\w*|изобретен\w*|избран\w*|открыт\w*)"
+    r"\s+([^,?.;]+)",
+    re.IGNORECASE,
+)
 # Only action classes with a stable five-character Russian prefix.
 EVENT_STEMS = frozenset(
     {"приня", "подпи", "созда", "основ", "утвер", "постр", "изобр", "избра", "откры"}
@@ -48,46 +54,78 @@ def _sentences(text: str) -> list[str]:
     return re.split(r"(?<=[.!?])\s+|\n+", protected)
 
 
+def _people(text: str) -> set[tuple[str, str]]:
+    """Extract names with surnames or Roman numerals (including inflections)."""
+    result: set[tuple[str, str]] = set()
+    for match in NAME_PATTERN.finditer(text):
+        first = match.group(1).casefold().replace("ё", "е")
+        second = match.group(2)
+        if re.fullmatch(r"[IVXLCDM]+", second) is None:
+            second = second.casefold().replace("ё", "е")
+        result.add((first, second))
+    return result
+
+
+def _matching_person(expected: tuple[str, str], actual: tuple[str, str]) -> bool:
+    """Do not conflate VII and VIII; allow common Russian case endings."""
+    for wanted, found in zip(expected, actual, strict=True):
+        if re.fullmatch(r"[IVXLCDM]+", wanted) or re.fullmatch(
+            r"[IVXLCDM]+", found
+        ):
+            if wanted != found:
+                return False
+            continue
+        common = min(5, len(wanted), len(found))
+        if common < 3 or wanted[:common] != found[:common]:
+            return False
+    return True
+
+
+def _event_object_terms(question: str) -> set[str]:
+    """Use the event's noun phrase, excluding descriptive clauses after commas."""
+    match = EVENT_OBJECT_PATTERN.search(question)
+    return _stems(match.group(1)) if match is not None else set()
+
+
 def has_supported_actor_and_year(
     question: str,
     answer: str,
     passages: Sequence[str],
 ) -> bool:
-    """Reject an incomplete 'year + actor' answer without direct joint evidence.
+    """Require the same year, action, event and named actor in one passage sentence.
 
-    For all other question shapes the legacy LLM decision remains authoritative.
-    This intentionally prefers refusal over guessing and is not a general NLI tool.
+    This guard covers only selected Russian question shapes; it is not NLI.
     """
     if not (ACTOR_QUESTION.search(question) and YEAR_QUESTION.search(question)):
         return True
 
-    events = EVENT_STEMS & _stems(question)
-    if not events:
+    actions = EVENT_STEMS & _stems(question)
+    if not actions:
         return True
 
+    target = _event_object_terms(question)
     years = set(YEAR_PATTERN.findall(answer))
-    if not years:
+    people = _people(answer)
+    institutions = ACTOR_STEMS & _stems(answer)
+    if not target or not years or not (people or institutions):
         return False
 
-    # The response must actually identify an actor, not just repeat the date.
-    actor_candidates = set(ACTOR_STEMS & _stems(answer))
-    named_actors = {
-        match.group(1).lower().replace("ё", "е")[:5] for match in NAME_PATTERN.finditer(answer)
-    }
-    actor_candidates.update(named_actors)
-    if not actor_candidates:
-        return False
-
-    # Accept only if an *actually transmitted* sentence links the year,
-    # event and the stated actor. Mere mentions in nearby sentences are not proof.
     for passage in passages:
         for sentence in _sentences(passage):
             stems = _stems(sentence)
-            if (
+            if not (
                 years & set(YEAR_PATTERN.findall(sentence))
-                and events & stems
-                and actor_candidates & stems
-                and (not named_actors or named_actors <= stems)
+                and actions & stems
+                and target <= stems
             ):
+                continue
+            if people:
+                mentioned = _people(sentence)
+                if all(
+                    any(_matching_person(person, item) for item in mentioned)
+                    for person in people
+                ):
+                    return True
+            elif institutions & stems:
                 return True
     return False

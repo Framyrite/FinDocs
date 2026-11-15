@@ -7,7 +7,13 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from app.chat.context import prepare_llm_context
-from app.chat.sources import MAX_QUOTE_LENGTH, build_answer_sources, build_context_sources
+from app.chat.sources import (
+    MAX_QUOTE_LENGTH,
+    build_answer_sources,
+    build_context_sources,
+    build_sources,
+    citations_support_answer,
+)
 from app.documents.models import Document, DocumentStatus
 from app.processing.models import Chunk, DocumentBlock, ProcessingResult
 from app.retrieval.lexical import LexicalRetriever, RankedChunk, _latin_acronyms
@@ -201,3 +207,25 @@ def test_d02_quotes_cover_fcfs_fifo_and_nonpreemptive_behavior() -> None:
     assert any("невытесняющее планирование" in source.quote for source in sources)
     assert 1 <= len(sources) <= 3
     assert_exact(sources, ranked)
+
+
+def test_mock_sources_support_short_rr_acronym() -> None:
+    ranked = make_ranked("RR — вытесняющий алгоритм с квантом времени.")
+    sources = build_sources([ranked], "RR")
+    assert sources
+    assert "RR" in sources[0].quote
+    assert_exact(sources, ranked)
+
+
+def test_unsupported_amount_is_not_confirmed_by_generic_quote() -> None:
+    ranked = make_ranked("Условия кредита описаны в договоре.")
+    sources = build_answer_sources(
+        prepare_llm_context([ranked]),
+        "Какие условия кредита?",
+        "По договору перечислили 900000 рублей.",
+    )
+    assert not citations_support_answer(
+        "Какие условия кредита?",
+        "По договору перечислили 900000 рублей.",
+        sources,
+    )
