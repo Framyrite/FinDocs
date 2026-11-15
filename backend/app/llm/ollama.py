@@ -166,9 +166,7 @@ class OllamaLLMAdapter(LLMAdapter):
         Reserve the model's output, system prompt, question and chat wrapper.
         This is a character/token approximation, not exact model tokenization.
         """
-        estimated_fixed_tokens = math.ceil(
-            (len(SYSTEM_PROMPT) + len(question) + 200) / 2.5
-        )
+        estimated_fixed_tokens = math.ceil((len(SYSTEM_PROMPT) + len(question) + 200) / 2.5)
         reserved = self._settings.llm_max_output_tokens + 256
         room = self._settings.llm_context_tokens - reserved - estimated_fixed_tokens
         return max(0, min(MAX_LLM_CONTEXT_CHARS, int(room * 2.5)))

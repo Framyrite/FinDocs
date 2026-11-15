@@ -176,9 +176,7 @@ class ChatService:
         else:
             context_candidates = expand_context_candidates(ranked_chunks, documents, question)
             budget_fn = getattr(self._llm_adapter, "context_char_budget", None)
-            max_chars = (
-                budget_fn(question) if callable(budget_fn) else MAX_LLM_CONTEXT_CHARS
-            )
+            max_chars = budget_fn(question) if callable(budget_fn) else MAX_LLM_CONTEXT_CHARS
             if max_chars <= 0:
                 return ChatResponse(
                     status="insufficient_info",

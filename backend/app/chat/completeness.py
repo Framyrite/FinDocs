@@ -69,9 +69,7 @@ def _people(text: str) -> set[tuple[str, str]]:
 def _matching_person(expected: tuple[str, str], actual: tuple[str, str]) -> bool:
     """Do not conflate VII and VIII; allow common Russian case endings."""
     for wanted, found in zip(expected, actual, strict=True):
-        if re.fullmatch(r"[IVXLCDM]+", wanted) or re.fullmatch(
-            r"[IVXLCDM]+", found
-        ):
+        if re.fullmatch(r"[IVXLCDM]+", wanted) or re.fullmatch(r"[IVXLCDM]+", found):
             if wanted != found:
                 return False
             continue
@@ -121,10 +119,7 @@ def has_supported_actor_and_year(
                 continue
             if people:
                 mentioned = _people(sentence)
-                if all(
-                    any(_matching_person(person, item) for item in mentioned)
-                    for person in people
-                ):
+                if all(any(_matching_person(person, item) for item in mentioned) for person in people):
                     return True
             elif institutions & stems:
                 return True
