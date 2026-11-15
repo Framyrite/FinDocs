@@ -119,7 +119,10 @@ def has_supported_actor_and_year(
                 continue
             if people:
                 mentioned = _people(sentence)
-                if all(any(_matching_person(person, item) for item in mentioned) for person in people):
+                if all(
+                    any(_matching_person(person, item) for item in mentioned)
+                    for person in people
+                ):
                     return True
             elif institutions & stems:
                 return True
