@@ -183,3 +183,21 @@ def test_query_fallback_sources_still_refer_to_sent_text() -> None:
     sources = build_context_sources(prepared, "кредит процент")
     assert sources
     assert_exact(sources, ranked)
+
+
+def test_d02_quotes_cover_fcfs_fifo_and_nonpreemptive_behavior() -> None:
+    """Answer citations should cover the name, queue and scheduling mode."""
+    text = (QA_DIR / "на_русском.txt").read_text(encoding="utf-8")[:1600]
+    ranked = make_ranked(text)
+    question = "Какой алгоритм планирования является невытесняющим и работает по принципу FIFO?"
+    answer = (
+        "Алгоритмом планирования, который является невытесняющим "
+        "и работает по принципу FIFO (First In, First Out), является FCFS "
+        "(First-Come, First-Served)."
+    )
+    sources = build_answer_sources(prepare_llm_context([ranked]), question, answer)
+    assert any("FIFO1" in source.quote for source in sources)
+    assert any("FCFS" in source.quote for source in sources)
+    assert any("невытесняющее планирование" in source.quote for source in sources)
+    assert 1 <= len(sources) <= 3
+    assert_exact(sources, ranked)

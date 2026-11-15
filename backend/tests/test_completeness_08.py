@@ -57,3 +57,35 @@ def test_other_questions_keep_existing_behavior() -> None:
         "Какой алгоритм невытесняющий и использует FIFO?",
     ):
         assert has_supported_actor_and_year(question, "Любой ответ.", [])
+
+
+def test_wrong_named_actor_same_role_is_rejected() -> None:
+    """A shared title must not validate a different named person."""
+    context = ["В 1534 году король Генрих VIII принял акт о супрематии."]
+    answer = "Акт принят королём Карлом IX в 1534 году."
+    assert not has_supported_actor_and_year(QUESTION, answer, context)
+
+
+def test_another_institutional_event_with_year_is_accepted() -> None:
+    """The guard covers a supported institution and a non-historical event."""
+    question = "В каком году и кем был подписан договор?"
+    context = ["В 2025 году комиссия подписала договор."]
+    answer = "Договор был подписан комиссией в 2025 году."
+    assert has_supported_actor_and_year(question, answer, context)
+
+
+def test_wrong_institution_is_rejected() -> None:
+    question = "В каком году и кем был подписан договор?"
+    context = ["В 2025 году комиссия подписала договор."]
+    answer = "Договор был подписан министром в 2025 году."
+    assert not has_supported_actor_and_year(question, answer, context)
+
+
+def test_unlinked_actor_and_year_stays_conservative() -> None:
+    question = "В каком году и кем был подписан договор?"
+    context = [
+        "Договор был подписан комиссией.",
+        "В 2025 году утверждены новые правила.",
+    ]
+    answer = "Договор был подписан комиссией в 2025 году."
+    assert not has_supported_actor_and_year(question, answer, context)

@@ -71,9 +71,10 @@ def has_supported_actor_and_year(
 
     # The response must actually identify an actor, not just repeat the date.
     actor_candidates = set(ACTOR_STEMS & _stems(answer))
-    actor_candidates.update(
+    named_actors = {
         match.group(1).lower().replace("ё", "е")[:5] for match in NAME_PATTERN.finditer(answer)
-    )
+    }
+    actor_candidates.update(named_actors)
     if not actor_candidates:
         return False
 
@@ -86,6 +87,7 @@ def has_supported_actor_and_year(
                 years & set(YEAR_PATTERN.findall(sentence))
                 and events & stems
                 and actor_candidates & stems
+                and (not named_actors or named_actors <= stems)
             ):
                 return True
     return False

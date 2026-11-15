@@ -218,6 +218,13 @@ def build_answer_sources(
     answer_terms = _answer_terms(answer)
     question_terms = _answer_terms(question)
     question_acronyms = _latin_acronyms(question)
+    first_answer_sentence = _answer_sentence_ranges(answer)
+    first_answer = (
+        answer[first_answer_sentence[0][0] : first_answer_sentence[0][1]]
+        if first_answer_sentence
+        else answer
+    )
+    key_acronyms = question_acronyms | _latin_acronyms(first_answer)
     focused_terms = answer_terms - question_terms
     if not answer_terms:
         return []
@@ -250,7 +257,10 @@ def build_answer_sources(
                     ):
                         quote = text[start:end]
                         quote_terms = _answer_terms(quote)
-                        if question_acronyms and not (question_acronyms & quote_terms):
+                        if question_acronyms and not (
+                            key_acronyms & quote_terms
+                            or (question_terms & answer_terms & quote_terms)
+                        ):
                             continue
                         terms = quote_terms & answer_terms
                         exclusive = terms & focused_terms
@@ -289,43 +299,77 @@ def build_answer_sources(
     sources: list[Source] = []
     covered_terms: set[str] = set()
     seen_ranges: set[tuple[object, int, int]] = set()
-    for candidate, left, right, terms, _ in options:
+
+    def add_option(option: tuple[RankedChunk, int, int, set[str], float]) -> bool:
+        candidate, left, right, terms, _ = option
+        doc_start = candidate.block.start_char + left
+        doc_end = candidate.block.start_char + right
+        key = (candidate.document.id, doc_start, doc_end)
+        if key in seen_ranges:
+            return False
+        if any(
+            source.document_id == candidate.document.id
+            and max(source.start_char, doc_start) < min(source.end_char, doc_end)
+            and min(source.end_char, doc_end) - max(source.start_char, doc_start)
+            > 0.7 * min(source.end_char - source.start_char, doc_end - doc_start)
+            for source in sources
+        ):
+            return False
+
+        seen_ranges.add(key)
+        sources.append(
+            Source(
+                document_id=candidate.document.id,
+                filename=candidate.document.filename,
+                block_id=candidate.block.id,
+                chunk_id=candidate.chunk.id,
+                start_char=doc_start,
+                end_char=doc_end,
+                quote=candidate.block.content[left:right],
+            )
+        )
+        covered_terms.update(terms)
+        return True
+
+    # Reserve evidence for acronyms requested by the user and those that the
+    # answer introduces (for D02: FIFO in the question and FCFS in the answer).
+    introduced = key_acronyms - question_acronyms
+    if question_acronyms and introduced:
+        ordered = sorted(question_acronyms) + sorted(introduced)
+        for acronym in ordered:
+            if any(acronym in _answer_terms(source.quote) for source in sources):
+                continue
+            anchored = [
+                option
+                for option in options
+                if acronym in _answer_terms(option[0].block.content[option[1] : option[2]])
+            ]
+            if any(option[2] - option[1] >= 100 for option in anchored):
+                anchored = [option for option in anchored if option[2] - option[1] >= 100]
+            for option in anchored:
+                if add_option(option):
+                    break
+
+        # Spend a free slot on facts from the question that were not yet cited.
+        remaining = (question_terms & answer_terms) - covered_terms
+        if len(sources) < TOP_K and remaining:
+            for option in sorted(
+                options,
+                key=lambda item: (-len(item[3] & remaining), -item[4]),
+            ):
+                if option[3] & remaining and add_option(option):
+                    break
+
+    for option in options:
+        if len(sources) >= TOP_K:
+            break
+        _, _, _, terms, _ = option
         novel = terms - covered_terms
         if sources and not novel:
             continue
         if sources and not ((novel & focused_terms) or len(novel) >= 2):
             continue
-
-        document = candidate.document
-        block = candidate.block
-        doc_start = block.start_char + left
-        doc_end = block.start_char + right
-        range_key = (document.id, doc_start, doc_end)
-        if range_key in seen_ranges:
-            continue
-        if any(
-            source.document_id == document.id
-            and max(source.start_char, doc_start) < min(source.end_char, doc_end)
-            and (min(source.end_char, doc_end) - max(source.start_char, doc_start))
-            > 0.7 * min(source.end_char - source.start_char, doc_end - doc_start)
-            for source in sources
-        ):
-            continue
-        seen_ranges.add(range_key)
-        sources.append(
-            Source(
-                document_id=document.id,
-                filename=document.filename,
-                block_id=block.id,
-                chunk_id=candidate.chunk.id,
-                start_char=doc_start,
-                end_char=doc_end,
-                quote=block.content[left:right],
-            )
-        )
-        covered_terms.update(terms)
-        if len(sources) >= TOP_K:
-            break
+        add_option(option)
 
     return sources
 
