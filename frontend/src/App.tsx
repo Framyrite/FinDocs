@@ -175,6 +175,8 @@ function App() {
             documents={documents}
             selectedIds={selectedDocIds}
             onSelectionChange={setSelectedDocIds}
+            onUpload={handleUpload}
+            isUploading={isUploading}
           />
         )}
       </main>

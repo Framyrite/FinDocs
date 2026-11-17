@@ -35,7 +35,7 @@ describe("Chat", () => {
     );
 
     const input = screen.getByPlaceholderText("Введите свой вопрос...");
-    const button = screen.getByText("Отправить");
+    const button = screen.getByRole("button", { name: "Отправить" });
 
     await userEvent.type(input, "Что такое облигация?");
     await userEvent.click(button);
@@ -46,6 +46,8 @@ describe("Chat", () => {
       exact: false,
     });
     expect(answerText).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /^Источники/ }));
 
     expect(screen.getByText("test.txt", { exact: false })).toBeInTheDocument();
     expect(screen.getByText("«Цитата»", { exact: false })).toBeInTheDocument();
@@ -73,7 +75,7 @@ describe("Chat", () => {
 
     const input = screen.getByPlaceholderText("Введите свой вопрос...");
     await userEvent.type(input, "Тестовый вопрос");
-    await userEvent.click(screen.getByText("Отправить"));
+    await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
 
     const answerText = await screen.findByText(
       "В выбранных материалах не удалось найти достаточную информацию для ответа.",
@@ -115,7 +117,7 @@ describe("Chat", () => {
 
     const input = screen.getByPlaceholderText("Введите свой вопрос...");
     await userEvent.type(input, "Тестовый вопрос");
-    await userEvent.click(screen.getByText("Отправить"));
+    await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
 
     const errorText = await screen.findByText(
       "Произошла техническая ошибка при получении ответа. Попробуйте еще раз.",
@@ -139,15 +141,17 @@ describe("Chat", () => {
         documents={[]}
         selectedIds={null}
         onSelectionChange={() => {}}
+        onUpload={vi.fn().mockResolvedValue(undefined)}
+        isUploading={false}
       />,
     );
 
     const input = screen.getByPlaceholderText("Введите свой вопрос...");
     await userEvent.type(input, "Тестовый вопрос");
-    await userEvent.click(screen.getByText("Отправить"));
+    await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
 
     const partialWarning = await screen.findByText(
-      "⚠️ Ответ неполный: система нашла информацию только по части вопроса.",
+      "Ответ неполный: система нашла информацию только по части вопроса.",
     );
     expect(partialWarning).toBeInTheDocument();
   });

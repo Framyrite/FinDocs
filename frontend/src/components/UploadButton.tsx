@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 interface UploadButtonProps {
   onUpload: (file: File) => Promise<void>;
   disabled?: boolean;
+  iconOnly?: boolean;
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -27,6 +28,7 @@ function validateFile(file: File): string | null {
 export function UploadButton({
   onUpload,
   disabled = false,
+  iconOnly = false,
 }: UploadButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -88,12 +90,29 @@ export function UploadButton({
       <button
         ref={buttonRef}
         type="button"
-        className="upload-button"
+        className={iconOnly ? "chat-attach-button" : "upload-button"}
+        aria-label={iconOnly ? "Прикрепить документ" : undefined}
         onClick={openDialog}
         disabled={disabled}
       >
-        <span aria-hidden="true">+</span>
-        Загрузить документ
+        {iconOnly ? (
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m8 13 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l8-8a7 7 0 0 1 10 10l-7 7" />
+          </svg>
+        ) : (
+          <>
+            <span aria-hidden="true">+</span>
+            Загрузить документ
+          </>
+        )}
       </button>
 
       {isOpen && (
