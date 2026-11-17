@@ -101,3 +101,13 @@ def test_correct_actor_wrong_event_is_not_supported() -> None:
     context = ["В 1534 году король Генрих VIII принял закон о налогах."]
     answer = "Акт о супрематии был принят Генрихом VIII в 1534 году."
     assert not has_supported_actor_and_year(QUESTION, answer, context)
+
+
+def test_explicit_missing_info_detection() -> None:
+    from app.chat.completeness import answer_admits_missing_info
+
+    assert answer_admits_missing_info("В предоставленных фрагментах не указано имя директора.")
+    assert answer_admits_missing_info("Информация о сумме оплаты акций в контексте отсутствует.")
+    assert not answer_admits_missing_info(
+        "При остановке IBM 7094 в 1973 году были найдены процессы 1967 года."
+    )

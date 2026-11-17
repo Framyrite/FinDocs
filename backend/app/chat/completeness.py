@@ -129,3 +129,17 @@ def has_supported_actor_and_year(
             elif institutions & stems:
                 return True
     return False
+
+
+MISSING_INFO_PATTERN = re.compile(
+    r"\bне\s+(?:указан\w*|назван\w*|привед\w*|сообща\w*|содерж\w*)\b"
+    r"|\bнет\s+(?:информац\w*|данн\w*|сведен\w*)\b"
+    r"|\bнеизвестн\w*\b"
+    r"|\b(?:информац\w*|сведен\w*|данн\w*)[^.!?\n]{0,120}\bотсутств\w*\b",
+    re.IGNORECASE,
+)
+
+
+def answer_admits_missing_info(answer: str) -> bool:
+    """Reject an answer explicitly admitting that requested facts are missing."""
+    return MISSING_INFO_PATTERN.search(answer) is not None

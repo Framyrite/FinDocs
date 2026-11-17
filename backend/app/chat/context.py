@@ -19,7 +19,7 @@ MAX_LLM_CONTEXT_CHARS = 6000
 
 # Add at most the remaining TOP_K slots, without widening document scope.
 EXPLANATION_QUESTION = re.compile(
-    r"\b(?:почему|зачем|сложн\w*|причин\w*|объясн\w*)\b|из-за",
+    r"\b(?:почему|зачем|сложн\w*|причин\w*|проблем\w*|объясн\w*)\b|из-за",
     re.IGNORECASE,
 )
 
