@@ -145,48 +145,37 @@ function App() {
     (selectedDocIds === null || selectedDocIds.length > 0);
 
   return (
-    <div style={{ maxWidth: "800px", margin: "0 auto", padding: "20px" }}>
-      <h1 style={{ marginBottom: "16px" }}>FinDocs</h1>
-
+    <div className="app-shell">
       <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Вкладка Документы */}
-      {activeTab === "documents" && (
-        <>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "20px",
-            }}
-          >
-            <h2>Мои документы</h2>
-            <UploadButton onUpload={handleUpload} disabled={isUploading} />
-          </div>
+      <main className="app-workspace">
+        {activeTab === "documents" && (
+          <section className="documents-workspace" aria-label="Мои документы">
+            <DocumentList
+              documents={filteredDocs}
+              isLoading={isLoading}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onDelete={handleDelete}
+              pollingErrors={pollingErrors}
+              onRetryPolling={handleRetryPolling}
+              uploadControl={
+                <UploadButton onUpload={handleUpload} disabled={isUploading} />
+              }
+            />
+          </section>
+        )}
 
-          <DocumentList
-            documents={filteredDocs}
-            isLoading={isLoading}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            onDelete={handleDelete}
-            pollingErrors={pollingErrors}
-            onRetryPolling={handleRetryPolling}
+        {activeTab === "chat" && (
+          <Chat
+            onAsk={handleAskQuestion}
+            hasReadyDocuments={hasReadyDocuments}
+            documents={documents}
+            selectedIds={selectedDocIds}
+            onSelectionChange={setSelectedDocIds}
           />
-        </>
-      )}
-
-      {/* Вкладка Чат */}
-      {activeTab === "chat" && (
-        <Chat
-          onAsk={handleAskQuestion}
-          hasReadyDocuments={hasReadyDocuments}
-          documents={documents}
-          selectedIds={selectedDocIds}
-          onSelectionChange={setSelectedDocIds}
-        />
-      )}
+        )}
+      </main>
     </div>
   );
 }
