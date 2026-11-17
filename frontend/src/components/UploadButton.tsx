@@ -141,7 +141,7 @@ export function UploadButton({
                 onClick={closeDialog}
                 disabled={disabled}
               >
-                <Icon name="x" size={18} />
+                <Icon name="x" size={24} />
               </button>
             </div>
 

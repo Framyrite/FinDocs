@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { SourceCard } from "./SourceCard";
 import { SearchScopeSelector } from "./SearchScopeSelector";
@@ -41,6 +41,32 @@ export function Chat({
   const [error, setError] = useState<string | null>(null);
   const [isSourcesOpen, setIsSourcesOpen] = useState(false);
   const [lastRequest, setLastRequest] = useState<QuestionRequest | null>(null);
+
+  const questionInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Поле растёт по содержимому от одной до двух строк. Ввод остаётся
+  // у нижнего края карточки, поэтому дополнительная строка занимает место сверху.
+  // Повторный расчёт нужен и при открытии источников: меняется ширина чата.
+  useLayoutEffect(() => {
+    const textarea = questionInputRef.current;
+    if (!textarea) return;
+
+    const styles = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(styles.lineHeight) || 24;
+    const verticalPadding =
+      (Number.parseFloat(styles.paddingTop) || 0) +
+      (Number.parseFloat(styles.paddingBottom) || 0);
+
+    const minHeight = lineHeight + verticalPadding;
+    const maxHeight = lineHeight * 2 + verticalPadding;
+
+    // Сначала сбрасываем высоту: иначе поле не уменьшится при удалении текста.
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(
+      Math.max(textarea.scrollHeight, minHeight),
+      maxHeight,
+    )}px`;
+  }, [question, isSourcesOpen]);
 
   const sendQuestion = async (request: QuestionRequest) => {
     if (isWaiting) return;
@@ -222,6 +248,7 @@ export function Chat({
 
             <form className="chat-question-form" onSubmit={handleSubmit}>
               <textarea
+                ref={questionInputRef}
                 aria-label="Ваш вопрос"
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
@@ -233,7 +260,7 @@ export function Chat({
                 }
                 disabled={isWaiting || !hasReadyDocuments}
                 maxLength={2000}
-                rows={2}
+                rows={1}
               />
 
               <button

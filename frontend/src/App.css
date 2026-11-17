@@ -172,10 +172,34 @@
 .documents-columns,
 .document-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 190px 150px 44px;
+  grid-template-columns: 44px minmax(0, 1fr) 190px minmax(0, 1fr) 44px;
   align-items: center;
   gap: 20px;
   padding: 16px 24px;
+}
+
+/* Симметричные крайние дорожки удерживают статус в середине всей строки.
+   Название занимает две левые дорожки; дата и действия — правые. */
+.documents-columns [role="columnheader"]:nth-child(1),
+.document-name-cell {
+  grid-column: 1 / 3;
+}
+
+.documents-columns [role="columnheader"]:nth-child(2),
+.document-status-cell {
+  grid-column: 3;
+  text-align: center;
+}
+
+.documents-columns [role="columnheader"]:nth-child(3),
+.document-date {
+  grid-column: 4;
+  justify-self: end;
+}
+
+.documents-actions-heading,
+.document-actions {
+  grid-column: 5;
 }
 
 .documents-columns {
@@ -244,6 +268,11 @@
   font-size: 11px;
 }
 
+.document-status-cell {
+  min-width: 0;
+  text-align: center;
+}
+
 .document-status {
   display: inline-flex;
   align-items: center;
@@ -279,7 +308,7 @@
 .document-polling-error {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: 4px;
   margin-top: 6px;
   font-size: 11px;
@@ -296,8 +325,10 @@
 
 .document-date {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
   color: var(--fd-subtle);
   font-size: 12px;
 }
@@ -459,6 +490,12 @@
   gap: 16px;
 }
 
+/* Крестик заголовка крупнее; область нажатия остаётся удобной. */
+.upload-dialog-header .upload-close-button {
+  width: 40px;
+  height: 40px;
+}
+
 .upload-dialog-header h2 {
   font-size: 22px;
   font-weight: 600;
@@ -586,10 +623,15 @@
   padding: 10px 12px;
   border: 1px solid var(--fd-border);
   border-radius: 8px;
-  background: var(--fd-accent-soft);
-  color: var(--fd-accent);
+  background: var(--fd-chat-action-bg);
+  color: var(--fd-chat-action);
   text-align: left;
   font-size: 13px;
+}
+
+.search-scope-button:hover {
+  background: var(--fd-chat-action-hover-bg);
+  color: var(--fd-chat-action-hover);
 }
 
 .search-scope-button > span {
@@ -893,7 +935,7 @@
 
 .chat-composer {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 12px;
   max-width: 840px;
   margin: 0 auto;
@@ -910,15 +952,24 @@
 .chat-composer textarea {
   flex: 1;
   min-width: 0;
-  min-height: 48px;
-  max-height: 160px;
+  height: 32px;
+  min-height: 32px;
+  max-height: 56px;
   padding: 4px;
-  resize: vertical;
+  resize: none;
+  overflow-y: auto;
+  scrollbar-width: none;
   border: 0;
   outline: none;
   background: transparent;
   color: var(--fd-text);
   line-height: 24px;
+}
+
+/* После двух строк текст прокручивается внутри поля без видимой полосы.
+   Содержимое и перемещение курсора сохраняются; ручное растягивание отключено. */
+.chat-composer textarea::-webkit-scrollbar {
+  display: none;
 }
 
 .chat-composer textarea::placeholder {
@@ -1045,7 +1096,7 @@
 /* Форма вопроса и диалог UploadButton — соседи, без вложенных form. */
 .chat-question-form {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   flex: 1;
   gap: 12px;
   min-width: 0;
