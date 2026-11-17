@@ -99,9 +99,12 @@ function App() {
       setDocuments((prev) => prev.filter((d) => d.id !== id));
 
       // Если удаленный документ был выбран — убираем его из выбора
-      setSelectedDocIds((prev) => {
-        if (prev === null) return null;
-        return prev.filter((item) => item !== id);
+      setSelectedDocIds((previous) => {
+        if (previous === null) return null;
+
+        const remainingIds = previous.filter((documentId) => documentId !== id);
+
+        return remainingIds.length > 0 ? remainingIds : null;
       });
 
       // Убираем ошибку polling для удаленного документа
@@ -137,9 +140,11 @@ function App() {
   );
 
   // Проверяем, есть ли хотя бы один готовый документ
-  const hasReadyDocuments =
-    documents.some((doc) => doc.status === "ready") &&
-    (selectedDocIds === null || selectedDocIds.length > 0);
+  const hasReadyDocuments = documents.some(
+    (document) =>
+      document.status === "ready" &&
+      (selectedDocIds === null || selectedDocIds.includes(document.id)),
+  );
 
   return (
     <div className="app-shell">

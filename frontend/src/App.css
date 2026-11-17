@@ -565,3 +565,148 @@
 .upload-cancel-button:not(:disabled):hover {
   background: var(--fd-accent-soft);
 }
+
+.search-scope {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.search-scope-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 244px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid var(--fd-border);
+  border-radius: 8px;
+  background: var(--fd-accent-soft);
+  color: var(--fd-accent);
+  text-align: left;
+  font-size: 13px;
+}
+
+.search-scope-button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-scope-chevron {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.search-scope-chevron--open {
+  transform: rotate(180deg);
+}
+
+.search-scope-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: 340px;
+  max-width: calc(100vw - 48px);
+  padding: 8px;
+  border: 1px solid var(--fd-border);
+  border-radius: 12px;
+  background: var(--fd-surface);
+  box-shadow: 0 8px 28px rgb(7 49 73 / 12%);
+}
+
+.search-scope-all,
+.search-scope-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.search-scope-all {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--fd-heading);
+  text-align: left;
+}
+
+.search-scope-all[aria-pressed="true"] {
+  background: var(--fd-accent-soft);
+  color: var(--fd-accent);
+}
+
+.search-scope-all:hover,
+.search-scope-file:hover {
+  background: var(--fd-accent-soft);
+}
+
+.search-scope-all-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.search-scope-divider {
+  height: 1px;
+  margin: 8px 4px;
+  background: var(--fd-border);
+}
+
+.search-scope-files {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.search-scope-file {
+  cursor: pointer;
+}
+
+.search-scope-file input {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--fd-accent);
+}
+
+.search-scope-file > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-scope-empty {
+  padding: 12px 10px;
+  color: var(--fd-text);
+  font-size: 13px;
+}
+
+.search-scope-search {
+  display: block;
+  margin: 0 4px 8px;
+}
+
+.search-scope-search input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--fd-border);
+  border-radius: 8px;
+  background: var(--fd-background);
+  color: var(--fd-heading);
+  font-size: 12px;
+}
+
+.search-scope-search input::placeholder {
+  color: var(--fd-subtle);
+}

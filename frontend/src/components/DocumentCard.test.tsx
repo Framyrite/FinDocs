@@ -51,9 +51,7 @@ describe("DocumentCard", () => {
       }),
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Удалить" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
 
     expect(handleDelete).toHaveBeenCalledExactlyOnceWith("123");
   });
