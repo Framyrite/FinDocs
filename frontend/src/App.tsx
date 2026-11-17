@@ -77,19 +77,16 @@ function App() {
     });
   };
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = async (file: File): Promise<void> => {
     setIsUploading(true);
+
     try {
-      const newDoc = await api.uploadDocument(file);
+      const newDocument = await api.uploadDocument(file);
 
-      // Обновляем список
-      const data = await api.getDocuments();
-      setDocuments(data.items);
-
-      // Polling запустится автоматически, так как новый документ попадет в pollingIds
-      console.log("Загружен новый документ:", newDoc);
-    } catch {
-      alert("Ошибка загрузки файла");
+      setDocuments((previous) => [
+        newDocument,
+        ...previous.filter((document) => document.id !== newDocument.id),
+      ]);
     } finally {
       setIsUploading(false);
     }

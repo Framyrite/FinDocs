@@ -73,16 +73,29 @@ export function DocumentList({
           </p>
         </div>
       ) : (
-        <div className="documents-items">
-          {documents.map((doc) => (
-            <DocumentCard
-              key={doc.id}
-              doc={doc}
-              onDelete={onDelete}
-              hasPollingError={Boolean(pollingErrors[doc.id])}
-              onRetryPolling={onRetryPolling}
-            />
-          ))}
+        <div className="documents-table" role="table" aria-label="Документы">
+          <div role="rowgroup">
+            <div className="documents-columns" role="row">
+              <div role="columnheader">Название документа</div>
+              <div role="columnheader">Статус</div>
+              <div role="columnheader">Дата загрузки</div>
+              <div role="columnheader" className="documents-actions-heading">
+                <span className="visually-hidden">Действия</span>
+              </div>
+            </div>
+          </div>
+
+          <div role="rowgroup">
+            {documents.map((doc) => (
+              <DocumentCard
+                key={doc.id}
+                doc={doc}
+                onDelete={onDelete}
+                hasPollingError={Boolean(pollingErrors[doc.id])}
+                onRetryPolling={onRetryPolling}
+              />
+            ))}
+          </div>
         </div>
       )}
     </section>
