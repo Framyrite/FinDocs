@@ -1,4 +1,5 @@
 import brandMark from "../assets/logo.png";
+import { Icon } from "./Icon";
 
 export type Tab = "chat" | "documents";
 
@@ -12,6 +13,8 @@ const tabs: { id: Tab; label: string }[] = [
   { id: "documents", label: "Мои документы" },
 ];
 
+// Активная вкладка хранится в App. Навигация меняет представление
+// внутри приложения без перезагрузки страницы.
 export function Navbar({ activeTab, onTabChange }: NavbarProps) {
   return (
     <header className="app-header">
@@ -46,6 +49,11 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
             aria-current={activeTab === tab.id ? "page" : undefined}
             onClick={() => onTabChange(tab.id)}
           >
+            <Icon
+              name={tab.id === "chat" ? "message-dots" : "files"}
+              size={18}
+            />
+
             {tab.label}
           </button>
         ))}

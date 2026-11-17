@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "./Icon";
 import type { Document } from "../types/api";
 
 interface DocumentCardProps {
@@ -8,6 +9,9 @@ interface DocumentCardProps {
   onRetryPolling: (id: string) => void;
 }
 
+// Все четыре статуса API сохраняются.
+// uploaded пока визуально относится к обработке;
+// отдельное отображение «Загружен» согласуется с архитектором.
 const statusLabels: Record<Document["status"], string> = {
   uploaded: "Обработка",
   processing: "Обработка",
@@ -22,6 +26,17 @@ const statusClasses: Record<Document["status"], string> = {
   error: "document-status--error",
 };
 
+const statusIcons: Record<
+  Document["status"],
+  "loader-2" | "check" | "alert-triangle"
+> = {
+  uploaded: "loader-2",
+  processing: "loader-2",
+  ready: "check",
+  error: "alert-triangle",
+};
+
+// API передаёт размер в байтах; для интерфейса переводим в КБ или МБ.
 function formatSize(bytes: number) {
   if (bytes < 1024 * 1024) {
     return `${Math.max(1, Math.ceil(bytes / 1024))} КБ`;
@@ -41,6 +56,7 @@ export function DocumentCard({
   onRetryPolling,
 }: DocumentCardProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -62,6 +78,8 @@ export function DocumentCard({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsMenuOpen(false);
+
+        // После закрытия с клавиатуры возвращаем фокус на три точки.
         menuButtonRef.current?.focus();
       }
     };
@@ -79,17 +97,7 @@ export function DocumentCard({
     <div className="document-row" role="row">
       <div className="document-name-cell" role="cell">
         <span className="document-file-icon" aria-hidden="true">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" />
-            <path d="M14 3v6h6M8 13h8M8 17h5" />
-          </svg>
+          <Icon name="file-description" size={21} />
         </span>
 
         <div className="document-name-content">
@@ -110,13 +118,26 @@ export function DocumentCard({
               : undefined
           }
         >
+          <Icon
+            name={statusIcons[doc.status]}
+            size={16}
+            className={
+              doc.status === "processing"
+                ? "document-status-icon--spinning"
+                : ""
+            }
+          />
+
           {statusLabels[doc.status]}
         </span>
 
+        {/* Ошибка обработки приходит в составе самого документа. */}
         {doc.status === "error" && doc.error_message && (
           <p className="document-error">{doc.error_message}</p>
         )}
 
+        {/* Сбой опроса не меняет статус документа:
+            показываем его отдельно и разрешаем повторить проверку. */}
         {hasPollingError && (
           <div className="document-polling-error" role="status">
             <span>Не удалось обновить статус.</span>
@@ -129,6 +150,8 @@ export function DocumentCard({
       </div>
 
       <div className="document-date" role="cell">
+        {/* В API время хранится в UTC.
+            Для пользователя отображаем его в часовом поясе браузера. */}
         <time dateTime={doc.created_at}>
           {createdAt.toLocaleDateString("ru-RU", {
             day: "numeric",
@@ -155,11 +178,7 @@ export function DocumentCard({
             aria-controls={isMenuOpen ? menuId : undefined}
             onClick={() => setIsMenuOpen((previous) => !previous)}
           >
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <circle cx="5" cy="12" r="1.7" />
-              <circle cx="12" cy="12" r="1.7" />
-              <circle cx="19" cy="12" r="1.7" />
-            </svg>
+            <Icon name="dots-vertical" size={21} />
           </button>
 
           {isMenuOpen && (
@@ -173,10 +192,12 @@ export function DocumentCard({
                 type="button"
                 className="document-delete-button"
                 onClick={() => {
+                  // Запрос удаления и обновление списка выполняются в App.
                   setIsMenuOpen(false);
                   onDelete(doc.id);
                 }}
               >
+                <Icon name="trash" size={18} />
                 Удалить
               </button>
             </div>

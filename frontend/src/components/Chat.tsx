@@ -4,6 +4,7 @@ import { SourceCard } from "./SourceCard";
 import { SearchScopeSelector } from "./SearchScopeSelector";
 import type { Document, Answer } from "../types/api";
 import { UploadButton } from "./UploadButton";
+import { Icon } from "./Icon";
 
 interface ChatProps {
   onAsk: (question: string, documentIds: string[] | null) => Promise<Answer>;
@@ -15,6 +16,7 @@ interface ChatProps {
   isUploading: boolean;
 }
 
+// Снимок вопроса и области поиска для повторной отправки того же запроса.
 interface QuestionRequest {
   question: string;
   documentIds: string[] | null;
@@ -29,6 +31,8 @@ export function Chat({
   onUpload,
   isUploading,
 }: ChatProps) {
+  // Черновик хранится отдельно от отправленного вопроса. В текущем MVP
+  // показывается последняя пара «вопрос — ответ», без хранения истории бесед.
   const [question, setQuestion] = useState("");
   const [sentQuestion, setSentQuestion] = useState("");
   const [chatTitle, setChatTitle] = useState("Новый чат");
@@ -41,6 +45,7 @@ export function Chat({
   const sendQuestion = async (request: QuestionRequest) => {
     if (isWaiting) return;
 
+    // Новый запрос заменяет предыдущий ответ и закрывает его источники.
     setIsWaiting(true);
     setAnswer(null);
     setError(null);
@@ -48,6 +53,7 @@ export function Chat({
     setLastRequest(request);
     setSentQuestion(request.question);
 
+    // Заголовок формируем по первому вопросу; это локальная подпись интерфейса.
     setChatTitle((previous) =>
       previous === "Новый чат" ? request.question.slice(0, 60) : previous,
     );
@@ -56,8 +62,11 @@ export function Chat({
       const result = await onAsk(request.question, request.documentIds);
 
       setAnswer(result);
+      // Очищаем черновик только после успешного ответа.
       setQuestion("");
     } catch {
+      // Технический сбой показываем отдельно от ответа insufficient_info.
+      // Черновик и снимок запроса остаются для исправления или повтора.
       setError(
         "Произошла техническая ошибка при получении ответа. Попробуйте еще раз.",
       );
@@ -71,6 +80,8 @@ export function Chat({
 
     if (!text || isWaiting || !hasReadyDocuments) return;
 
+    // null означает все готовые документы. Явный список копируем,
+    // чтобы запрос и его повтор использовали один и тот же набор ID.
     void sendQuestion({
       question: text,
       documentIds: selectedIds === null ? null : [...selectedIds],
@@ -82,6 +93,8 @@ export function Chat({
     submitQuestion();
   };
 
+  // Enter отправляет вопрос, Shift + Enter оставляет перенос строки.
+  // Во время IME-ввода Enter не должен преждевременно отправлять текст.
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (
       event.key === "Enter" &&
@@ -93,6 +106,8 @@ export function Chat({
     }
   };
 
+  // Форма загрузки находится вне формы вопроса: вложенные form недопустимы.
+  // Боковая панель показывает только источники, полученные вместе с ответом API.
   return (
     <div className="chat-layout">
       <section className="chat-panel" aria-label="Чат по документам">
@@ -227,17 +242,7 @@ export function Chat({
                 aria-label="Отправить"
                 disabled={!question.trim() || isWaiting || !hasReadyDocuments}
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="m5 12 7-7 7 7M12 5v14" />
-                </svg>
+                <Icon name="send" size={22} />
               </button>
             </form>
           </div>
@@ -263,7 +268,7 @@ export function Chat({
               aria-label="Закрыть источники"
               onClick={() => setIsSourcesOpen(false)}
             >
-              ×
+              <Icon name="x" size={18} />
             </button>
           </div>
 

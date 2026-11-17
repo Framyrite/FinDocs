@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import type { Document } from "../types/api";
 import { DocumentCard } from "./DocumentCard";
+import { Icon } from "./Icon";
 
 interface DocumentListProps {
+  // Список уже отфильтрован по названию в App.
   documents: Document[];
   isLoading: boolean;
   searchQuery: string;
@@ -10,6 +12,8 @@ interface DocumentListProps {
   onDelete: (id: string) => void;
   pollingErrors: Record<string, boolean>;
   onRetryPolling: (id: string) => void;
+
+  // Передаём готовую кнопку, сохраняя обработчик загрузки в App.
   uploadControl: ReactNode;
 }
 
@@ -29,18 +33,7 @@ export function DocumentList({
     <section className="documents-panel" aria-label="Список документов">
       <div className="documents-toolbar">
         <label className="documents-search">
-          <svg
-            className="documents-search-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <circle cx="10.5" cy="10.5" r="6.5" />
-            <path d="m16 16 4 4" />
-          </svg>
+          <Icon name="search" size={18} className="documents-search-icon" />
 
           <input
             type="search"
@@ -60,6 +53,8 @@ export function DocumentList({
         </div>
       ) : documents.length === 0 ? (
         <div className="documents-empty">
+          {/* Пустую библиотеку отличаем от отсутствия совпадений
+              по введённому названию. */}
           <h2>
             {hasSearchQuery
               ? "Документы не найдены"
@@ -69,7 +64,7 @@ export function DocumentList({
           <p>
             {hasSearchQuery
               ? "Попробуйте изменить название в строке поиска."
-              : "Загрузите лекцию или конспект, чтобы задавать вопросы по материалам."}
+              : "Загрузите лекцию или конспект, чтобы задавать вопросы по своим материалам."}
           </p>
         </div>
       ) : (
@@ -79,6 +74,7 @@ export function DocumentList({
               <div role="columnheader">Название документа</div>
               <div role="columnheader">Статус</div>
               <div role="columnheader">Дата загрузки</div>
+
               <div role="columnheader" className="documents-actions-heading">
                 <span className="visually-hidden">Действия</span>
               </div>

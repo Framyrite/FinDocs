@@ -1,5 +1,7 @@
 import "@testing-library/jest-dom";
 
+// Дополняем только отсутствующие в тестовой DOM-среде методы dialog.
+// Это имитация открытия/закрытия для тестов, не замена браузерной модальности.
 if (typeof HTMLDialogElement.prototype.showModal !== "function") {
   Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
     configurable: true,

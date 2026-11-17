@@ -1,9 +1,14 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { Icon } from "./Icon";
 import type { Document } from "../types/api";
 
 interface SearchScopeSelectorProps {
   documents: Document[];
+
+  // null — поиск по всем готовым документам.
+  // Массив — только явно выбранные пользователем документы.
   selectedIds: string[] | null;
+
   onChange: (ids: string[] | null) => void;
 }
 
@@ -19,16 +24,20 @@ export function SearchScopeSelector({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownId = useId();
 
+  // В область поиска можно включать только обработанные документы.
   const readyDocuments = documents.filter(
     (document) => document.status === "ready",
   );
 
+  // Режим «Все» не ставит галочки у отдельных файлов:
+  // галочки отражают исключительно явный выбор пользователя.
   const selectedReadyIds = readyDocuments
     .filter(
       (document) => selectedIds !== null && selectedIds.includes(document.id),
     )
     .map((document) => document.id);
 
+  // Поиск меняет только видимый список, сохраняя выбранные файлы.
   const normalizedQuery = searchQuery.trim().toLocaleLowerCase("ru");
 
   const filteredDocuments = readyDocuments.filter((document) =>
@@ -56,6 +65,8 @@ export function SearchScopeSelector({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsOpen(false);
+
+        // При закрытии с клавиатуры возвращаем фокус на кнопку.
         buttonRef.current?.focus();
       }
     };
@@ -63,6 +74,7 @@ export function SearchScopeSelector({
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
 
+    // Убираем обработчики при закрытии списка и размонтировании.
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
@@ -74,7 +86,19 @@ export function SearchScopeSelector({
       ? selectedReadyIds.filter((selectedId) => selectedId !== id)
       : [...selectedReadyIds, id];
 
+    // Снятие последней галочки возвращает режим «Все».
+    // Галочки у остальных файлов при этом не появляются.
     onChange(nextIds.length > 0 ? nextIds : null);
+  };
+
+  const toggleDropdown = () => {
+    // При новом открытии показываем полный список.
+    // Сам выбор документов при этом сохраняется.
+    if (!isOpen) {
+      setSearchQuery("");
+    }
+
+    setIsOpen((previous) => !previous);
   };
 
   return (
@@ -86,30 +110,17 @@ export function SearchScopeSelector({
         aria-label={`Область поиска: ${selectionLabel}`}
         aria-expanded={isOpen}
         aria-controls={isOpen ? dropdownId : undefined}
-        onClick={() => {
-          if (!isOpen) {
-            setSearchQuery("");
-          }
-
-          setIsOpen((previous) => !previous);
-        }}
+        onClick={toggleDropdown}
       >
         <span>{selectionLabel}</span>
 
-        <svg
+        <Icon
+          name="chevron-down"
+          size={16}
           className={`search-scope-chevron ${
             isOpen ? "search-scope-chevron--open" : ""
           }`}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+        />
       </button>
 
       {isOpen && (
@@ -126,7 +137,7 @@ export function SearchScopeSelector({
             onClick={() => onChange(null)}
           >
             <span className="search-scope-all-mark" aria-hidden="true">
-              {isAllSelected ? "✓" : ""}
+              {isAllSelected && <Icon name="check" size={16} />}
             </span>
             Все готовые документы
           </button>
@@ -135,6 +146,12 @@ export function SearchScopeSelector({
 
           <label className="search-scope-search">
             <span className="visually-hidden">Поиск файлов для выбора</span>
+
+            <Icon
+              name="search"
+              size={16}
+              className="search-scope-search-icon"
+            />
 
             <input
               type="search"

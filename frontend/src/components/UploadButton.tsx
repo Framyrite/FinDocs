@@ -1,14 +1,19 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { Icon } from "./Icon";
 
 interface UploadButtonProps {
   onUpload: (file: File) => Promise<void>;
+  // Общий флаг передаётся из App, чтобы блокировать действия во время отправки.
   disabled?: boolean;
+  // Одна логика загрузки для кнопки в документах и скрепки в чате.
   iconOnly?: boolean;
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
+// Отсекаем неподходящие файлы до запроса. Сервер повторяет проверки
+// и дополнительно проверяет содержимое, включая кодировку и пустой текст.
 function validateFile(file: File): string | null {
   if (!file.name.toLowerCase().endsWith(".txt")) {
     return "Поддерживаются только файлы TXT.";
@@ -41,6 +46,8 @@ export function UploadButton({
   const titleId = useId();
   const descriptionId = useId();
 
+  // showModal включает штатную модальность dialog и ограничение фокуса.
+  // Проверка open защищает от повторного вызова для уже открытого окна.
   useEffect(() => {
     if (isOpen && !dialogRef.current?.open) {
       dialogRef.current?.showModal();
@@ -56,6 +63,7 @@ export function UploadButton({
   const closeDialog = () => {
     dialogRef.current?.close();
     setIsOpen(false);
+    // После закрытия возвращаем пользователя к кнопке, открывшей окно.
     buttonRef.current?.focus();
   };
 
@@ -63,6 +71,7 @@ export function UploadButton({
     const validationError = validateFile(selectedFile);
 
     setError(validationError);
+    // Невалидный файл не сохраняется для отправки: подтверждение недоступно.
     setFile(validationError ? null : selectedFile);
   };
 
@@ -74,9 +83,12 @@ export function UploadButton({
     setError(null);
 
     try {
+      // Выбор файла сам по себе ничего не отправляет. Ждём подтверждённую
+      // загрузку и закрываем окно только при успешном завершении запроса.
       await onUpload(file);
       closeDialog();
     } catch (uploadError) {
+      // При сбое сохраняем окно и файл, чтобы пользователь мог повторить отправку.
       setError(
         uploadError instanceof Error
           ? uploadError.message
@@ -95,24 +107,9 @@ export function UploadButton({
         onClick={openDialog}
         disabled={disabled}
       >
-        {iconOnly ? (
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="m8 13 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l8-8a7 7 0 0 1 10 10l-7 7" />
-          </svg>
-        ) : (
-          <>
-            <span aria-hidden="true">+</span>
-            Загрузить документ
-          </>
-        )}
+        <Icon name={iconOnly ? "paperclip" : "plus"} size={20} />
+
+        {!iconOnly && "Загрузить документ"}
       </button>
 
       {isOpen && (
@@ -144,7 +141,7 @@ export function UploadButton({
                 onClick={closeDialog}
                 disabled={disabled}
               >
-                ×
+                <Icon name="x" size={18} />
               </button>
             </div>
 
@@ -176,6 +173,8 @@ export function UploadButton({
               onClick={() => inputRef.current?.click()}
               disabled={disabled}
             >
+              <Icon name="upload" size={32} />
+
               <span className="upload-picker-title">
                 Выбрать файл на компьютере
               </span>
@@ -209,7 +208,7 @@ export function UploadButton({
                     setError(null);
                   }}
                 >
-                  ×
+                  <Icon name="x" size={18} />
                 </button>
               </div>
             )}

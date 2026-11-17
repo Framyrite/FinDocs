@@ -36,7 +36,8 @@
   --fd-chat-action-hover: #1d3566;
   --fd-chat-action-hover-bg: #e4eaf4;
 
-  /* Отправленное сообщение */
+  /* Отправленное сообщение: независимые переменные, даже если цвета
+     совпадают с цветами других элементов интерфейса. */
   --fd-user-message-bg: #eef1f7;
   --fd-user-message-text: #608297;
 
@@ -118,4 +119,15 @@ svg {
 
 img {
   max-width: 100%;
+}
+
+/* SVG задаёт прозрачную маску, currentColor — цвет видимого контура.
+   Префикс -webkit-mask нужен для совместимости браузеров. */
+.app-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
+  background-color: currentColor;
+  -webkit-mask: var(--icon-url) center / contain no-repeat;
+  mask: var(--icon-url) center / contain no-repeat;
 }

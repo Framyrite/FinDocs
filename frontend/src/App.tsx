@@ -77,12 +77,16 @@ function App() {
     });
   };
 
+  // Ошибку отправки не перехватываем здесь: её покажет окно UploadButton.
+  // finally снимает общий флаг загрузки и при успехе, и при ошибке.
   const handleUpload = async (file: File): Promise<void> => {
     setIsUploading(true);
 
     try {
       const newDocument = await api.uploadDocument(file);
 
+      // API возвращает созданный документ: добавляем его первым без повторного
+      // запроса списка. Его промежуточный статус автоматически включит polling.
       setDocuments((previous) => [
         newDocument,
         ...previous.filter((document) => document.id !== newDocument.id),
@@ -104,6 +108,7 @@ function App() {
 
         const remainingIds = previous.filter((documentId) => documentId !== id);
 
+        // После удаления последнего выбранного файла возвращаем режим «Все».
         return remainingIds.length > 0 ? remainingIds : null;
       });
 
@@ -135,11 +140,12 @@ function App() {
     pollingErrors,
   );
 
+  // Этот фильтр влияет только на список документов, не на область поиска чата.
   const filteredDocs = documents.filter((doc) =>
     doc.filename.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  // Проверяем, есть ли хотя бы один готовый документ
+  // Отправка доступна, только если готовый документ есть в выбранной области.
   const hasReadyDocuments = documents.some(
     (document) =>
       document.status === "ready" &&

@@ -13,6 +13,8 @@ export async function request<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
 
+  // Content-Type задаёт вызывающий метод. Для FormData браузер должен
+  // сформировать multipart-заголовок с boundary самостоятельно.
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -32,7 +34,7 @@ export async function request<T>(
     throw new Error(errorMessage);
   }
 
-  // 204 No Content — тело пустое
+  // DELETE возвращает 204 без тела: попытка response.json() вызвала бы ошибку.
   if (response.status === 204) {
     return undefined as T;
   }

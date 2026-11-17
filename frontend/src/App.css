@@ -103,6 +103,7 @@
   width: 100%;
 }
 
+/* Библиотека: поиск и загрузка над общей таблицей файлов. */
 .documents-panel {
   width: 100%;
   min-width: 0;
@@ -167,6 +168,7 @@
   flex-shrink: 0;
 }
 
+/* Одна сетка для заголовков и строк удерживает колонки на общих позициях. */
 .documents-columns,
 .document-row {
   display: grid;
@@ -360,6 +362,7 @@
   background: var(--fd-status-error-bg);
 }
 
+/* Скрываем визуально, сохраняя подписи для скринридера. */
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -392,6 +395,7 @@
   color: var(--fd-text);
 }
 
+/* Окно загрузки: native dialog, выбранный файл и ошибки отправки. */
 .upload-button,
 .upload-cancel-button {
   display: inline-flex;
@@ -566,6 +570,7 @@
   background: var(--fd-accent-soft);
 }
 
+/* Выбор области поиска: «Все» отделено от явного выбора отдельных файлов. */
 .search-scope {
   position: relative;
   flex-shrink: 0;
@@ -711,6 +716,8 @@
   color: var(--fd-subtle);
 }
 
+/* Чат и правая панель источников. Высота учитывает текущую шапку
+   84px и вертикальные отступы рабочей области 16px + 24px. */
 .chat-layout {
   display: flex;
   align-items: stretch;
@@ -758,6 +765,7 @@
   border: 0;
 }
 
+/* Прокручивается содержимое чата, а шапка и ввод остаются на своих местах. */
 .chat-thread {
   display: flex;
   flex: 1;
@@ -917,6 +925,8 @@
   color: var(--fd-subtle);
 }
 
+/* Цвет отправки сохраняется и при disabled; недоступность определяется
+   атрибутом кнопки, а не обязательным изменением её цвета. */
 .chat-send-button {
   display: flex;
   align-items: center;
@@ -998,6 +1008,7 @@
   padding: 0 24px 24px;
 }
 
+/* Источники показывают имя файла и дословную цитату из ответа API. */
 .source-card {
   padding: 20px;
   border: 1px solid var(--fd-border);
@@ -1031,6 +1042,7 @@
   overflow-wrap: anywhere;
 }
 
+/* Форма вопроса и диалог UploadButton — соседи, без вложенных form. */
 .chat-question-form {
   display: flex;
   align-items: flex-end;
@@ -1062,4 +1074,59 @@
 .chat-attach-button svg {
   width: 22px;
   height: 22px;
+}
+
+.nav-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Иконка находится внутри поля, не перекрывая ввод текста. */
+.search-scope-search {
+  position: relative;
+}
+
+.search-scope-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  color: var(--fd-text);
+  pointer-events: none;
+}
+
+.search-scope-search input {
+  padding-left: 34px;
+}
+
+/* Иконки наследуют цвет соответствующей статусной плашки. */
+.document-status {
+  gap: 6px;
+}
+
+.document-delete-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Вращение показываем только во время processing,
+   а не во время ожидания начала обработки. */
+.document-status-icon--spinning {
+  animation: document-status-spin 1s linear infinite;
+}
+
+@keyframes document-status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Подпись состояния сохраняется и без анимации. */
+@media (prefers-reduced-motion: reduce) {
+  .document-status-icon--spinning {
+    animation: none;
+  }
 }

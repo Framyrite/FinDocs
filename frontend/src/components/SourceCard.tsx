@@ -5,6 +5,8 @@ interface SourceCardProps {
   index: number;
 }
 
+// Цитату показываем из Source.quote без вырезания текста по start_char/end_char:
+// позиции API считаются в Unicode-кодпоинтах, а индексы JS — в UTF-16.
 export function SourceCard({ source, index }: SourceCardProps) {
   return (
     <article className="source-card">

@@ -1,6 +1,7 @@
 // frontend/src/types/api.ts
 // Типы данных, соответствующие mvp-contracts.md v0.2
 
+// Значения статусов сохраняем как в контракте API независимо от подписей в UI.
 export type DocumentStatus = "uploaded" | "processing" | "ready" | "error";
 
 export interface Document {
@@ -11,6 +12,7 @@ export interface Document {
   error_code: string | null;
   error_message: string | null;
   size_bytes: number;
+  // API передаёт ISO 8601 в UTC; локальное отображение выполняет интерфейс.
   created_at: string;
 }
 
@@ -23,6 +25,7 @@ export interface Source {
   chunk_id: string;
   start_char: number;
   end_char: number;
+  // Готовая цитата для показа: frontend не вычисляет её по индексам.
   quote: string;
 }
 
@@ -44,6 +47,7 @@ export interface ApiErrorResponse {
 
 export interface AskRequest {
   question: string;
+  // null — все готовые документы; пустой массив контрактом не допускается.
   document_ids: string[] | null;
 }
 
