@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import type { Document, Answer } from "./types/api";
 import { api } from "./api";
+import { ApiRequestError } from "./api/client";
 import { DocumentList } from "./components/DocumentList";
 import { UploadButton } from "./components/UploadButton";
 import { Chat } from "./components/Chat";
@@ -96,31 +97,69 @@ function App() {
     }
   };
 
+  // Удаляем известный отсутствующий документ и из библиотеки, и из выбора.
+  // Пустой явный выбор не переключается на «Все».
+  const removeDocumentFromState = (id: string) => {
+    setDocuments((previous) =>
+      previous.filter((document) => document.id !== id),
+    );
+    setSelectedDocIds((previous) =>
+      previous === null
+        ? null
+        : previous.filter((documentId) => documentId !== id),
+    );
+    setPollingErrors((previous) => {
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm("Удалить документ?")) return;
+
     try {
       await api.deleteDocument(id);
-      setDocuments((prev) => prev.filter((d) => d.id !== id));
+      removeDocumentFromState(id);
+    } catch (error) {
+      if (!(error instanceof ApiRequestError) || error.status !== 404) {
+        // При сети, 403 или 5xx отсутствие документа не подтверждено:
+        // не удаляем строку и не меняем выбор пользователя.
+        alert("Ошибка удаления");
+        return;
+      }
 
-      // Если удаленный документ был выбран — убираем его из выбора
-      setSelectedDocIds((previous) => {
-        if (previous === null) return null;
+      // 404 подтверждает, что документа уже нет. Это не успешный DELETE.
+      // Убираем устаревшую строку сразу, даже если обновление списка даст сбой.
+      removeDocumentFromState(id);
 
-        const remainingIds = previous.filter((documentId) => documentId !== id);
+      try {
+        const data = await api.getDocuments();
+        const existingIds = new Set(data.items.map((document) => document.id));
+        setDocuments(data.items);
 
-        // Удаление последнего выбранного файла оставляет пустую область поиска.
-        // Выбор всех документов возможен только по действию пользователя.
-        return remainingIds;
-      });
+        // В другой вкладке могли удалить несколько документов. Сверяем весь
+        // явный выбор с ответом сервера, не расширяя его до всей библиотеки.
+        setSelectedDocIds((previous) =>
+          previous === null
+            ? null
+            : previous.filter((documentId) => existingIds.has(documentId)),
+        );
+        setPollingErrors((previous) =>
+          Object.fromEntries(
+            Object.entries(previous).filter(([documentId]) =>
+              existingIds.has(documentId),
+            ),
+          ),
+        );
+      } catch {
+        alert(
+          "Документ уже отсутствует на сервере. Не удалось обновить список остальных документов. Обновите страницу, чтобы повторить загрузку списка.",
+        );
+        return;
+      }
 
-      // Убираем ошибку polling для удаленного документа
-      setPollingErrors((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    } catch {
-      alert("Ошибка удаления");
+      alert("Документ уже отсутствует на сервере. Список документов обновлён.");
     }
   };
 

@@ -3,6 +3,18 @@ import type { ApiErrorResponse } from "../types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
+// Сохраняем HTTP-код отдельно от текста, чтобы UI мог различать, например,
+// отсутствие документа (404), отказ сервера и обычную сетевую ошибку fetch.
+export class ApiRequestError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+  }
+}
+
 /**
  * Универсальная функция для запросов к API.
  * Обрабатывает ошибки в формате контракта.
@@ -31,7 +43,7 @@ export async function request<T>(
     } catch {
       // Если не удалось распарсить JSON, оставляем стандартное сообщение
     }
-    throw new Error(errorMessage);
+    throw new ApiRequestError(response.status, errorMessage);
   }
 
   // DELETE возвращает 204 без тела: попытка response.json() вызвала бы ошибку.
