@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { act } from "react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { Chat } from "./Chat";
@@ -27,7 +28,13 @@ describe("Chat", () => {
       ],
     };
 
-    const handleAsk = vi.fn().mockResolvedValue(mockAnswer);
+    let resolveAnswer!: (answer: Answer) => void;
+    const handleAsk = vi.fn().mockImplementation(
+      () =>
+        new Promise<Answer>((resolve) => {
+          resolveAnswer = resolve;
+        }),
+    );
 
     render(
       <Chat
@@ -46,11 +53,25 @@ describe("Chat", () => {
     await userEvent.click(button);
 
     expect(handleAsk).toHaveBeenCalledWith("Что такое облигация?", null);
+    expect(input).toHaveValue("");
+    expect(input).toBeDisabled();
+    expect(
+      within(screen.getByLabelText("Сообщения чата")).getByText(
+        "Что такое облигация?",
+        { exact: true },
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Ищем ответ в выбранных материалах…"),
+    ).toBeInTheDocument();
 
+    await act(async () => resolveAnswer(mockAnswer));
     const answerText = await screen.findByText("Тестовый ответ", {
       exact: false,
     });
     expect(answerText).toBeInTheDocument();
+    expect(input).toHaveValue("");
+    expect(input).toBeEnabled();
 
     await userEvent.click(screen.getByRole("button", { name: /^Источники/ }));
 
@@ -108,7 +129,20 @@ describe("Chat", () => {
   });
 
   it("показывает техническую ошибку при сбое API", async () => {
-    const handleAsk = vi.fn().mockRejectedValue(new Error("LLM unavailable"));
+    let rejectAnswer!: (error: Error) => void;
+    const handleAsk = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<Answer>((_resolve, reject) => {
+            rejectAnswer = reject;
+          }),
+      )
+      .mockResolvedValue({
+        status: "answered",
+        answer: "Ответ после повтора",
+        sources: [],
+      });
 
     render(
       <Chat
@@ -123,11 +157,22 @@ describe("Chat", () => {
     const input = screen.getByPlaceholderText("Введите свой вопрос...");
     await userEvent.type(input, "Тестовый вопрос");
     await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
+    expect(input).toHaveValue("");
+    expect(input).toBeDisabled();
+    await act(async () => rejectAnswer(new Error("LLM unavailable")));
 
     const errorText = await screen.findByText(
       "Произошла техническая ошибка при получении ответа. Попробуйте еще раз.",
     );
     expect(errorText).toBeInTheDocument();
+    expect(input).toHaveValue("Тестовый вопрос");
+    expect(input).toBeEnabled();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Повторить запрос" }),
+    );
+    expect(await screen.findByText("Ответ после повтора")).toBeInTheDocument();
+    expect(handleAsk).toHaveBeenNthCalledWith(2, "Тестовый вопрос", null);
+    expect(input).toHaveValue("");
   });
 
   it("показывает предупреждение при частичном ответе (partial)", async () => {

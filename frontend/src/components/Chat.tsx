@@ -89,6 +89,9 @@ export function Chat({
   const sendQuestion = async (request: QuestionRequest) => {
     if (isWaiting || !canAsk || request.documentIds?.length === 0) return;
 
+    // Вопрос сразу переносится в переписку. Пока ждём ответ, поле пустое.
+    // Снимок request позволяет восстановить текст при ошибке и повторить запрос.
+    setQuestion("");
     // Новый запрос заменяет предыдущий ответ и закрывает его источники.
     setIsWaiting(true);
     setAnswer(null);
@@ -106,11 +109,10 @@ export function Chat({
       const result = await onAsk(request.question, request.documentIds);
 
       setAnswer(result);
-      // Очищаем черновик только после успешного ответа.
-      setQuestion("");
     } catch (error) {
       // Технический сбой показываем отдельно от ответа insufficient_info.
-      // Черновик и снимок запроса остаются для исправления или повтора.
+      // Возвращаем текст в поле для исправления; снимок остаётся для повтора.
+      setQuestion(request.question);
       setError(
         getApiErrorMessage(
           error,
