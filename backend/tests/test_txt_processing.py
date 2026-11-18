@@ -1,4 +1,3 @@
-
 """Tests for UTF-8 TXT decoding and processing results."""
 
 from uuid import UUID, uuid5
@@ -12,7 +11,6 @@ from app.processing import (
     process_txt,
 )
 
-
 DOCUMENT_ID = UUID("12345678-1234-5678-1234-567812345678")
 
 
@@ -20,10 +18,10 @@ DOCUMENT_ID = UUID("12345678-1234-5678-1234-567812345678")
     ("data", "expected"),
     [
         (b"Hello", "Hello"),
-        ("Привет!".encode("utf-8"), "Привет!"),
+        ("Привет!".encode(), "Привет!"),
         (b"\xef\xbb\xbfHello", "Hello"),
         (b"Line 1\r\nLine 2\n", "Line 1\r\nLine 2\n"),
-        ("Текст 👋📄".encode("utf-8"), "Текст 👋📄"),
+        ("Текст 👋📄".encode(), "Текст 👋📄"),
     ],
 )
 def test_decode_valid_txt(data: bytes, expected: str) -> None:
@@ -37,7 +35,7 @@ def test_decode_valid_txt(data: bytes, expected: str) -> None:
         b"   ",
         b"\n\r\n\t",
         b"\xef\xbb\xbf",
-        " \n\t ".encode("utf-8"),
+        b" \n\t ",
     ],
 )
 def test_decode_empty_txt(data: bytes) -> None:
@@ -112,9 +110,7 @@ def test_process_long_txt() -> None:
 
         assert 0 <= chunk.start_char < chunk.end_char <= len(text)
 
-        assert chunk.content == text[
-            chunk.start_char:chunk.end_char
-        ]
+        assert chunk.content == text[chunk.start_char : chunk.end_char]
 
         if position > 0:
             previous = result.chunks[position - 1]
@@ -146,7 +142,6 @@ def test_processing_rejects_invalid_input() -> None:
 
 def test_processing_uuid5_identifiers() -> None:
     """Verify deterministic UUID5 identifiers for blocks and chunks."""
-
     text = "Привет, FinDocs! 👋\r\n" * 100
     data = text.encode("utf-8")
 
@@ -166,13 +161,9 @@ def test_processing_uuid5_identifiers() -> None:
         assert chunk.block_id == block.id
         assert chunk.position == position
 
-    assert len({chunk.id for chunk in result.chunks}) == len(
-        result.chunks
-    )
+    assert len({chunk.id for chunk in result.chunks}) == len(result.chunks)
 
-    other_document_id = UUID(
-        "87654321-4321-5678-4321-876543218765"
-    )
+    other_document_id = UUID("87654321-4321-5678-4321-876543218765")
 
     other_result = process_txt(
         data,

@@ -1,222 +1,597 @@
-# Backend
+# FinDocs Backend
 
-Backend part of FinDocs.
+Backend FinDocs на **Python 3.12** и **FastAPI**: загрузка и обработка TXT-документов, лексический поиск по сохранённым чанкам, ответы с проверяемыми цитатами и опциональная локальная генерация через **Ollama**.
 
-Use this directory for server-side code, API endpoints, business logic, database access, and backend-specific configuration.
+**Текущий этап — Backend 0.8.** Приложение поддерживает два режима генерации:
 
+- **`mock` (по умолчанию)** — детерминированный ответ `[MOCK]` по найденным цитатам, без запущенной модели;
+- **`ollama`** — ответ локальной LLM на основании найденных фрагментов TXT.
 
-## Backend 0.2
+**Важно:** поиск остаётся лексическим. Наличие Ollama **не означает** реализацию семантического RAG, embeddings, PostgreSQL или pgvector. Ответ LLM может содержать ошибки, даже если источники настоящие.
 
-## Локальный запуск
+## Реализованные компоненты
 
-Требуется Python 3.12 и доступ к PyPI для первоначальной установки зависимостей.
-Все команды ниже выполняются в каталоге `backend`.
-В `requirements.txt` зафиксированы прямые и транзитивные зависимости,
-использованные при проверке. Линтеры в зависимости приложения не включены.
-
-Linux / macOS:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-cp .env.example .env
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-
-Windows PowerShell:
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item .env.example .env
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-
-Копирование `.env.example` выполняется один раз. Если `.env` уже существует,
-сохраните его настройки и добавьте недостающие параметры вручную.
-При отсутствии `.env` используются значения по умолчанию.
-
-Остановка сервера: `Ctrl+C`. Для запуска без автоматической перезагрузки
-уберите `--reload`.
-
-Из корня существующего репозитория сервер также можно запустить командой
-`python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000`.
-Используйте Python из установленного виртуального окружения backend.
-
-## Проверка доступности
-
-После запуска откройте <http://127.0.0.1:8000/health> или выполните
-в другом терминале:
-
-```bash
-curl -i http://127.0.0.1:8000/health
-```
-
-PowerShell:
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health
-```
-
-Ожидаются HTTP `200`, `Content-Type: application/json` и ответ:
-
-```json
-{"status":"ok"}
-```
-
-Описание API: <http://127.0.0.1:8000/docs>.
-Машинная спецификация: <http://127.0.0.1:8000/openapi.json>.
-`/health` подтверждает доступность HTTP-приложения.
-
-## Настройки
-
-| Переменная | Значение по умолчанию | Назначение |
+| Этап | Компоненты | Возможности |
 | --- | --- | --- |
-| `FINDOCS_APP_NAME` | `FinDocs Backend` | Название приложения в OpenAPI |
-| `FINDOCS_DEBUG` | `false` | Режим отладки FastAPI |
+| Backend 0.5 | `app/documents/`, `app/processing/`, `app/api/documents.py` | Загрузка, файловое хранение, обработка, список, статусы и удаление TXT |
+| Backend 0.6 | `app/retrieval/`, `app/chat/`, `app/llm/mock.py` | `POST /chat/ask`, лексическое ранжирование, точные источники, MockLLM |
+| Backend 0.7 | `app/llm/ollama.py`, `app/llm/errors.py`, настройки и DI | Локальная LLM, структурированный ответ, отказ по недостатку данных, обработка ошибок |
+| Backend 0.8 | `app/retrieval/lexical.py`, `app/chat/context.py`, `app/chat/sources.py`, `app/chat/completeness.py` | Лексический fallback, расширенный контекст, улучшенные доказательные цитаты и узкая проверка составных ответов |
 
-Порядок приоритета: переменные окружения процесса → `backend/.env` →
-значения по умолчанию. Путь к `.env` определяется относительно `config.py`,
-поэтому настройки читаются и при запуске из корня репозитория.
-Посторонние параметры `.env` игнорируются. Пустое имя приложения и неверное
-значение `FINDOCS_DEBUG` вызывают ошибку валидации при запуске.
-Настройки читаются один раз на процесс; после изменения перезапустите сервер.
-Хост и порт задаются параметрами Uvicorn в команде запуска.
+Публичный HTTP API сохраняет контракт `mvp-contracts.md` v0.2. Выбор LLM не меняет формат `ChatRequest`, `ChatResponse` или `Source`.
 
-## Ручная проверка LLM-адаптера
+## Требования
 
-Из каталога `backend` выполните в том же виртуальном окружении:
+- Python **3.12**.
+- Один процесс Uvicorn для файлового хранилища MVP.
+- Локальный токенизатор `multilingual-e5-small` для обработки новых TXT.
+- Доступ к PyPI для установки зависимостей.
+- **Только для `ollama`-режима:** установленный и запущенный Ollama, заранее скачанная совместимая модель и достаточный объём RAM/VRAM.
 
-```bash
-python -c "from app.main import app; print(app.state.llm_adapter.generate('Что такое FinDocs?', 'FinDocs работает с учебными материалами.'))"
-```
+Для `mock`-режима Ollama не нужна. Автоматические тесты не требуют скачивания LLM или подключения к серверу Ollama.
 
-Ожидаемый результат:
+## Установка Python-зависимостей
 
-```text
-[MOCK] Тестовый ответ. Реальная LLM не подключена.
-Вопрос: Что такое FinDocs?
-Контекст: FinDocs работает с учебными материалами.
-```
+Виртуальное окружение рекомендуется создавать **в корне репозитория**.
 
-Контракт: `LLMAdapter.generate(question: str, context: str) -> str`.
-`context` — уже подготовленный текст; пустая строка допустима.
-Пустой вопрос вызывает `ValueError`, аргумент другого типа — `TypeError`.
-Mock возвращает одинаковый результат для одинаковых входных данных.
+### macOS / Linux
 
-`create_app(llm_adapter=...)` принимает любую реализацию `LLMAdapter`.
-Зависимость выбирается в `main.py` и хранится в `app.state.llm_adapter`.
-Будущая бизнес-логика обращается к интерфейсу `LLMAdapter`; конкретная
-реализация подключается при создании приложения.
-
-## TXT Processing
-
-The backend includes a TXT processing module that converts UTF-8
-documents into text blocks and overlapping chunks.
-
-### Features
-
-- UTF-8 and UTF-8 BOM support.
-- Preservation of original whitespace and line breaks.
-- Validation of empty and incorrectly encoded documents.
-- Token-based chunking with 350 tokens per window and 50-token overlap.
-- Exact character offsets for each chunk.
-- Deterministic UUID5 identifiers for blocks and chunks.
-
-### Requirements
-
-- Python 3.12
-- `tokenizers==0.23.3`
-- The pinned `multilingual-e5-small` tokenizer file
-
-### Installation
-
-From the repository root:
+Из корня FinDocs:
 
 ```bash
-cd backend
 python3.12 -m venv .venv
 source .venv/bin/activate
+cd backend
 python -m pip install -r requirements-dev.txt
 ```
 
-### Download the tokenizer
+Если окружение уже существует, активируйте его и перейдите в `backend`:
 
-The tokenizer file is not stored in Git.
+```bash
+source .venv/bin/activate
+cd backend
+```
 
-From the `backend` directory:
+### Windows PowerShell
+
+Из корня FinDocs:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+cd backend
+python -m pip install -r requirements-dev.txt
+```
+
+### Структура зависимостей
+
+- `requirements.txt` — runtime-зависимости, включая `fastapi`, `pydantic`, `tokenizers`, `python-multipart` и **`httpx`** для вызовов Ollama;
+- `requirements-dev.txt` — включает `requirements.txt`, а также инструменты разработки (`pytest`, `ruff`).
+
+При установке только приложения можно использовать `python -m pip install -r requirements.txt`.
+
+```bash
+python -m pip check
+```
+
+## Конфигурация
+
+Настройки загружаются из окружения и `backend/.env`. Приоритет: **переменные процесса → `.env` → значения по умолчанию**.
+
+Для локальной настройки из каталога `backend`:
+
+```bash
+cp .env.example .env
+```
+
+Не перезаписывайте существующий `.env`, если он уже содержит ваши настройки. `.env` не должен попадать в Git.
+
+| Переменная | По умолчанию | Назначение |
+| --- | --- | --- |
+| `FINDOCS_APP_NAME` | `FinDocs Backend` | Название приложения |
+| `FINDOCS_DEBUG` | `false` | Режим отладки |
+| `FINDOCS_DATA_DIR` | `backend/data/` | Корень локального хранилища |
+| `FINDOCS_MAX_TXT_SIZE_MB` | `10` | Максимальный размер TXT, МиБ |
+| `FINDOCS_MAX_DOCUMENTS` | `100` | Максимальное количество документов |
+| `FINDOCS_LLM_PROVIDER` | `mock` | `mock` или `ollama` |
+| `FINDOCS_OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Базовый URL Ollama без логина и пароля |
+| `FINDOCS_LLM_MODEL` | `qwen3.5:4b-q4_K_M` | Точный тег установленной модели |
+| `FINDOCS_LLM_TIMEOUT_SECONDS` | `90` | Таймаут HTTP-запроса, секунды |
+| `FINDOCS_LLM_TEMPERATURE` | `0` | Температура генерации (0–2) |
+| `FINDOCS_LLM_MAX_OUTPUT_TOKENS` | `512` | Лимит генерируемых токенов (`num_predict`) |
+| `FINDOCS_LLM_CONTEXT_TOKENS` | `4096` | Контекстное окно (`num_ctx`) |
+
+Настройки валидируются Pydantic. Значения таймаута, лимита вывода и контекстного окна должны быть положительными; `llm_provider` допускает только `mock` и `ollama`. URL Ollama не должен содержать встроенные учётные данные.
+
+При изменении настроек **перезапустите backend**. Явно переданный в `create_app(llm_adapter=...)` адаптер имеет приоритет перед выбранным `FINDOCS_LLM_PROVIDER`.
+
+### Пример `.env` для Ollama
+
+```dotenv
+FINDOCS_LLM_PROVIDER=ollama
+FINDOCS_OLLAMA_BASE_URL=http://127.0.0.1:11434
+FINDOCS_LLM_MODEL=qwen3.5:4b-q4_K_M
+FINDOCS_LLM_TIMEOUT_SECONDS=90
+FINDOCS_LLM_TEMPERATURE=0
+FINDOCS_LLM_MAX_OUTPUT_TOKENS=512
+FINDOCS_LLM_CONTEXT_TOKENS=4096
+```
+
+Чтобы вернуться к демонстрационному режиму:
+
+```dotenv
+FINDOCS_LLM_PROVIDER=mock
+```
+
+## Установка TXT-токенизатора
+
+Для обработки новых файлов нужен `tokenizer.json` модели `multilingual-e5-small`. **Этот файл не хранится в Git и не загружается автоматически** при старте backend.
+
+Из `backend`:
 
 ```bash
 mkdir -p models/multilingual-e5-small
-
 curl -fL --retry 3 \
   "https://huggingface.co/intfloat/multilingual-e5-small/resolve/ada7b62be30f82b0bc5da131b0477721c8fc14e9/tokenizer.json" \
   -o models/multilingual-e5-small/tokenizer.json
 ```
 
-Verify the SHA-256 checksum:
+Проверка контрольной суммы на macOS / Linux:
 
 ```bash
 echo "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39  models/multilingual-e5-small/tokenizer.json" \
   | shasum -a 256 -c -
 ```
 
-Expected output:
+Ожидаемый результат: `models/multilingual-e5-small/tokenizer.json: OK`. Используется `tokenizers==0.23.3`. Контрольная сумма SHA-256 — **не секретный ключ**; она проверяет целостность файла.
+
+Лексический поиск использует ранее сохранённые чанки и не запускает TXT-обработку заново при каждом вопросе.
+
+## Локальная LLM: Ollama (Backend 0.7)
+
+### Установка и запуск
+
+Установка для macOS через Homebrew:
+
+```bash
+brew install ollama
+brew services start ollama
+```
+
+Для других ОС используйте официальные инструкции: <https://ollama.com/download>.
+
+Проверка сервера и списка загруженных моделей:
+
+```bash
+ollama --version
+ollama list
+curl http://127.0.0.1:11434/api/tags
+```
+
+Сервер должен отвечать JSON, даже если моделей пока нет (`"models": []`).
+
+### Первая модель
+
+```bash
+ollama pull qwen3.5:4b-q4_K_M
+ollama list
+```
+
+При необходимости можно предварительно проверить модель в терминале:
+
+```bash
+ollama run qwen3.5:4b-q4_K_M
+```
+
+Завершение интерактивного диалога — `/bye`.
+
+**Запуск `ollama run` не равнозначен проверке FinDocs:** в CLI могут отображаться рассуждения модели и применяться другие параметры. Для интеграционной проверки используется HTTP API через `OllamaLLMAdapter`.
+
+### Поддерживаемые модельные теги
+
+Модель выбирается **настройкой**, без изменения Python-кода. Нет жёсткого ограничения на перечисленные теги: технически допускается любая совместимая с API Ollama модель.
+
+| Назначение | Тег Ollama | Статус проверки |
+| --- | --- | --- |
+| Первый smoke test | `qwen3.5:4b-q4_K_M` | Успешно запущена локально и проверена через FinDocs |
+| Сравнение QA | `qwen3.5:9b-q4_K_M` | Результаты сравнения ещё не зафиксированы |
+| Сравнение QA | `gemma4:e4b-it-q4_K_M` | Результаты сравнения ещё не зафиксированы |
+| Резерв для демонстрации | `ministral-3:3b-instruct-2512-q4_K_M` | По необходимости, запуск заранее проверить |
+
+Сравнение трёх основных моделей — **отдельная работа QA (Артём)**. Не следует считать их качество или скорость подтверждёнными без измерений на одинаковых входных данных и оборудовании.
+
+Размер файла модели не равен объёму занятой RAM/VRAM: память также расходуется на контекст и выполнение.
+
+### Как работает `OllamaLLMAdapter`
+
+1. `ChatService` получает релевантные фрагменты через `LexicalRetriever` и `build_sources()`.
+2. Если источников нет, сразу возвращается `insufficient_info`: **Ollama не вызывается**.
+3. При наличии источников адаптер отправляет `POST /api/chat` с выбранной моделью, вопросом и подготовленным контекстом.
+4. Запрос использует `stream: false`, `think: false`, настройки `temperature`, `num_predict` и `num_ctx`; структурированный ответ задаётся JSON Schema.
+5. Внутренний формат модели: `{"supported": true, "answer": "..."}` либо `{"supported": false, "answer": ""}`.
+6. Сервис преобразует результат в стандартный `ChatResponse`; служебный JSON и thinking пользователю не возвращаются.
+
+Текст TXT считается **недоверенными данными**, а не инструкциями. Модель получает правила отвечать только по фрагментам; однако промпт и корректный JSON **не гарантируют фактологическую достоверность**.
+
+При отказе модели (`supported=false`) возвращается `200 insufficient_info` с пустым `sources`. Неправильная структура ответа, недоступная модель или таймаут дают `503 llm_unavailable`. **Автоматического `ollama pull`, скрытого fallback на MockLLM и бесконечных повторов нет.**
+
+## Запуск FastAPI
+
+Из каталога `backend` с активированным Python-окружением:
+
+```bash
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+В режиме `ollama` Ollama должна быть уже запущена, а модель загружена заранее. Для разового запуска без изменения `.env`:
+
+```bash
+FINDOCS_LLM_PROVIDER=ollama \
+FINDOCS_LLM_MODEL=qwen3.5:4b-q4_K_M \
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Остановка сервера — `Ctrl+C`.
+
+- Swagger UI: <http://127.0.0.1:8000/docs>
+- OpenAPI JSON: <http://127.0.0.1:8000/openapi.json>
+
+```bash
+curl -i http://127.0.0.1:8000/health
+```
+
+Ожидается `HTTP 200` и `{"status":"ok"}`. **`/health` не проверяет работоспособность Ollama** и не является LLM health-check.
+
+## Библиотека TXT-документов (Backend 0.5)
+
+### Хранение
+
+Корень хранения задаётся `FINDOCS_DATA_DIR`. Структура по умолчанию:
 
 ```text
-models/multilingual-e5-small/tokenizer.json: OK
+backend/data/
+└── documents/
+    └── <uuid>/
+        ├── original.bin
+        ├── meta.json
+        └── result.json
 ```
 
-The tokenizer directory can also be configured using
-`FINDOCS_TOKENIZER_DIR`.
+- `original.bin` — исходные байты TXT без изменений;
+- `meta.json` — документ, статус, метаданные и сведения об ошибках;
+- `result.json` — блоки и чанки после успешной обработки.
 
-The application does not automatically download the tokenizer.
+Документы идентифицируются **UUID**, а не именем файла. Повторяющиеся имена допустимы. `backend/data/` исключён из Git.
 
-### Running tests
+### Статусы
 
-From the `backend` directory:
+| Статус | Значение |
+| --- | --- |
+| `uploaded` | Исходный файл сохранён |
+| `processing` | Идёт обработка TXT |
+| `ready` | Результат успешно сохранён и доступен |
+| `error` | Обработка завершилась ошибкой либо результат недоступен |
+
+Стандартный переход: `uploaded → processing → ready / error`. При перезапуске приложения незавершённые `uploaded`/`processing` переводятся в `error` с кодом `processing_failed`; сохранённые `ready` и `error` восстанавливаются. Готовый документ с отсутствующим или повреждённым `result.json` может перейти в `error`.
+
+Используется `threading.RLock`; обработка TXT не удерживает блокировку файлового репозитория. Удалённый во время обработки документ не должен «воскресать» после позднего завершения фоновой задачи. **MVP рассчитан на один процесс Uvicorn**; межпроцессная синхронизация не реализована.
+
+### `POST /documents` — загрузка
+
+Запрос `multipart/form-data`, поле `file`. Один TXT на HTTP-запрос.
 
 ```bash
-python -m pytest -v tests/
+printf '%s\n' 'Облигация — долговая ценная бумага. Эмитент обязуется вернуть номинальную стоимость в установленный срок.' > /tmp/findocs-example.txt
+curl -i -F "file=@/tmp/findocs-example.txt;type=text/plain" \
+  http://127.0.0.1:8000/documents
 ```
 
-The test suite covers TXT decoding, input validation,
-chunk boundaries, character offsets, deterministic processing,
-and tokenizer loading errors.
+Успех — **202 Accepted**, объект `Document`, первоначально обычно в статусе `uploaded` или `processing`. Ответ `202` **не означает**, что обработка уже завершена.
 
-### Usage example
+Поддерживается только `.txt` (UTF-8, также UTF-8 BOM). Нулевой файл запрещён; максимальный размер — **10 МиБ** по умолчанию; лимит библиотеки — **100 документов** по умолчанию. Неправильная кодировка и TXT из одних пробелов могут быть приняты HTTP-слоем, но затем получат статус `error` при фоновой обработке.
 
-```python
-from uuid import uuid4
-from app.processing import process_txt
-
-document_id = uuid4()
-
-result = process_txt(
-    "Привет, FinDocs!".encode("utf-8"),
-    document_id,
-)
-
-print(result.blocks)
-print(result.chunks)
-```
-
-### Scope
-
-This module performs in-memory TXT processing only.
-
-It does not implement document storage, HTTP endpoints,
-vector search, RAG, or LLM integration.
-
-
-## Запуск автотестов (CI/QA)
-
-В проекте настроен совместный запуск Unit-тестов (`backend/tests/`) и независимых QA-проверок (`tests/` в корне). 
-
-Требуется: **Python 3.12**. Все команды выполняются из директории `backend`:
+### `GET /documents` — библиотека
 
 ```bash
-python -m pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests/ ../tests/ -q
+curl http://127.0.0.1:8000/documents
+curl "http://127.0.0.1:8000/documents?status=ready&q=example"
 ```
+
+Ответ: `{"items": [...], "total": N}`. Параметры `status` и `q` необязательны. Поиск `q` — подстрока имени без учёта регистра; сортировка — новые первыми. Пагинация не реализована.
+
+### `GET /documents/{document_id}` — статус
+
+```bash
+curl http://127.0.0.1:8000/documents/<uuid>
+```
+
+Подставьте действительный UUID. Возвращает актуальный объект `Document` либо `404 document_not_found`. Frontend использует маршрут для polling до `ready` или `error`.
+
+### `DELETE /documents/{document_id}` — удаление
+
+```bash
+curl -i -X DELETE http://127.0.0.1:8000/documents/<uuid>
+```
+
+Успех — **204 No Content**; повторное удаление — **404**. Исходник, метаданные и результат удаляются с диска. В новых запросах удалённый документ не участвует в поиске.
+
+### Ошибки документов
+
+| HTTP | Код | Причина |
+| --- | --- | --- |
+| 415 | `unsupported_format` | Неподдерживаемый формат |
+| 413 | `file_too_large` | Превышен лимит TXT |
+| 422 | `empty_file` | Нулевой размер файла |
+| 409 | `document_limit_reached` | Достигнут лимит библиотеки |
+| 404 | `document_not_found` | Документ отсутствует |
+| 422 | `validation_error` | Некорректный UUID или параметры HTTP-запроса |
+
+Ошибки обработки уже принятого TXT отражаются в `Document.error_code`: `invalid_encoding`, `empty_document`, `processing_failed`.
+
+Общий формат ошибки:
+
+```json
+{
+  "error": {
+    "code": "file_too_large",
+    "message": "Файл больше допустимого размера (10 МБ).",
+    "details": {"max_size_mb": 10}
+  }
+}
+```
+
+Поле `details` необязательно.
+
+## Вопросы по документам (Backend 0.6–0.7)
+
+### `POST /chat/ask`
+
+```bash
+curl -i -X POST http://127.0.0.1:8000/chat/ask \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "question": "Облигация долговая ценная бумага?",
+    "document_ids": null
+  }'
+```
+
+| Поле | Тип | Правила |
+| --- | --- | --- |
+| `question` | `string` | После `strip`: 1–2000 символов |
+| `document_ids` | `UUID[] \| null` | `null`/отсутствует — все `ready`; непустой список — только выбранные |
+
+`document_ids=[]` запрещён. Повторяющиеся UUID не должны приводить к повторным источникам. Отсутствующий выбранный документ даёт 404, неготовый — 409. Если при `document_ids=null` нет готовых документов, возвращается 409, а не `insufficient_info`.
+
+### Структура ответа
+
+Успешный ответ с моделью:
+
+```json
+{
+  "status": "answered",
+  "answer": "Да, облигация является долговой ценной бумагой.",
+  "sources": [
+    {
+      "document_id": "4309aa83-fe99-460e-a8a9-fbf50377475d",
+      "filename": "findocs-ollama-test.txt",
+      "block_id": "a277c7ea-88e4-564c-b9b5-a8633626ac36",
+      "chunk_id": "442d406c-de12-5f62-9ec7-51477086e878",
+      "start_char": 0,
+      "end_char": 35,
+      "quote": "Облигация — долговая ценная бумага."
+    }
+  ]
+}
+```
+
+Это пример успешного локального smoke test Qwen3.5 4B; идентификаторы и ответ в других запросах будут отличаться.
+
+`Source` создаётся **сервером**, а не LLM. Цитата — дословная подстрока исходного декодированного TXT:
+
+```text
+quote == decoded_txt[start_char:end_char]
+```
+
+Смещения измеряются в **Unicode-кодпоинтах Python**, `end_char` не включается; длина цитаты не более 300 символов. Frontend должен выводить готовое `quote`, а не пытаться вырезать текст JS-индексами (JavaScript использует UTF-16).
+
+Статусы `ChatResponse`: `answered`, `insufficient_info`; поле `partial` предусмотрено общим контрактом, но в текущем алгоритме не выдаётся.
+
+### Недостаточно информации
+
+Два случая дают одинаковый ответ:
+
+1. Лексический поиск не нашёл достаточно подходящих фрагментов; LLM не вызывается.
+2. Фрагменты найдены, но LLM сообщила, что по ним нельзя ответить.
+
+```json
+{
+  "status": "insufficient_info",
+  "answer": "В выбранных материалах не удалось найти достаточную информацию для ответа.",
+  "sources": []
+}
+```
+
+Наличие хотя бы одного текстового совпадения **не гарантирует** достаточности сведений для ответа на конкретный вопрос.
+
+### Ошибки чата
+
+| HTTP | Код | Значение |
+| --- | --- | --- |
+| 422 | `invalid_question` | Пустой вопрос, неверный UUID или `document_ids=[]` |
+| 422 | `question_too_long` | Вопрос длиннее 2000 символов после обрезки пробелов |
+| 404 | `document_not_found` | Указанного документа нет |
+| 409 | `document_not_ready` | Выбранный документ не готов |
+| 409 | `no_ready_documents` | Нет готовых документов в общей области поиска |
+| 503 | `llm_unavailable` | Ollama/адаптер недоступны, таймаут или неверный формат ответа |
+| 500 | `internal_error` | Неожиданная внутренняя ошибка |
+
+Техническую ошибку модели нельзя превращать в `insufficient_info`. HTTP-ошибки не раскрывают трассировки, промпты, локальные пути и содержимое документов.
+
+## Лексический поиск (Backend 0.6)
+
+Файл `app/retrieval/lexical.py` реализует детерминированное ранжирование **сохранённых чанков**; данные заново не обрабатываются при вызове `/chat/ask`.
+
+### Нормализация
+
+- Нижний регистр, `ё → е`.
+- Unicode-слова из букв и цифр; `_` считается разделителем.
+- Удаление слов короче трёх символов и фиксированных стоп-слов.
+- Оставшиеся слова приводятся к первым пяти Unicode-символам.
+
+Пример: `ОБЛИГАЦИЯ → облиг`.
+
+### Выбор фрагментов
+
+Для множества основ вопроса `Q` и множества основ чанка `T`:
+
+```text
+coverage = |Q ∩ T| / |Q|
+MIN_COVERAGE = 0.6
+TOP_K = 3
+```
+
+Кандидаты сортируются по покрытию, числу совпадений с повторами, дате документа и стабильным ключам UUID/позиций. Источники формируются из наиболее релевантных предложений, максимум 300 символов; одинаковые диапазоны удаляются.
+
+**Известное ограничение:** поиск не понимает синонимы и смысловые переформулировки. Например, `«Что такое облигация?»` может не пройти порог `0.6`, даже когда в документе есть определение: слово `такое` остаётся поисковым, но отсутствует в тексте. Для диагностики используйте вопрос, более близкий к лексике документа. Изменение порога и стоп-слов не входит в Backend 0.7.
+
+## Ручной smoke test Backend 0.7
+
+Проверка выполняется после запуска Ollama, скачивания модели, настройки `FINDOCS_LLM_PROVIDER=ollama` и запуска FastAPI.
+
+### 1. Загрузить TXT
+
+```bash
+printf '%s\n' 'Облигация — долговая ценная бумага. Эмитент обязуется вернуть номинальную стоимость в установленный срок.' > /tmp/findocs-ollama-test.txt
+curl -sS -F 'file=@/tmp/findocs-ollama-test.txt' \
+  http://127.0.0.1:8000/documents
+```
+
+Запомните `id` из ответа. Затем повторяйте `GET /documents/<uuid>` до статуса `ready`:
+
+```bash
+curl -sS http://127.0.0.1:8000/documents/<uuid>
+```
+
+### 2. Проверить генерацию с источниками
+
+```bash
+curl -i -X POST http://127.0.0.1:8000/chat/ask \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "question": "Облигация долговая ценная бумага?",
+    "document_ids": ["<uuid>"]
+  }'
+```
+
+Замените `<uuid>` на настоящий ID. Ожидаются HTTP 200, `status=answered`, осмысленный ответ и минимум один серверный `Source`. В `ollama`-режиме префикс `[MOCK]` отсутствует.
+
+### 3. Проверить отказ модели
+
+```bash
+curl -i -X POST http://127.0.0.1:8000/chat/ask \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "question": "Какова номинальная стоимость облигации?",
+    "document_ids": ["<uuid>"]
+  }'
+```
+
+Контекст говорит о возврате номинальной стоимости, но не содержит конкретного значения. Ожидается `200 insufficient_info` с пустым `sources` (поведение нужно проверять на каждой модели).
+
+### 4. Проверить недоступность Ollama
+
+На macOS, если сервер запущен как Homebrew service:
+
+```bash
+brew services stop ollama
+```
+
+Повторите вопрос из пункта 2 с `curl -i`. Ожидается **503** и:
+
+```json
+{
+  "error": {
+    "code": "llm_unavailable",
+    "message": "Сервис генерации ответа временно недоступен."
+  }
+}
+```
+
+При этом:
+
+```bash
+curl -i http://127.0.0.1:8000/health
+```
+
+по-прежнему должен возвращать 200. Верните Ollama:
+
+```bash
+brew services start ollama
+```
+
+### 5. Проверить возврат в mock
+
+Установите `FINDOCS_LLM_PROVIDER=mock`, перезапустите FastAPI и повторите вопрос с подходящими лексическими совпадениями. Ответ должен начинаться с `[MOCK]`; Ollama не нужна.
+
+## Автоматические проверки
+
+Все Python-команды выполняются из каталога `backend` в активном `.venv`.
+
+### Полная регрессия (unit + QA)
+
+```bash
+PYTHONPATH=.. python -m pytest tests/ ../tests/ -q
+```
+
+`PYTHONPATH=..` важен: внешние тесты из `FinDocs/tests/` импортируют пакет `backend.app`. Так же настроен существующий backend GitHub Actions workflow.
+
+### Линтер, форматирование и зависимости
+
+```bash
+python -m ruff check . ../tests/
+python -m ruff format --check . ../tests/
+python -m pip check
+```
+
+При необходимости автоисправления оформления (после просмотра изменений):
+
+```bash
+python -m ruff check . ../tests/ --fix
+python -m ruff format . ../tests/
+```
+
+Перед коммитом из корня репозитория:
+
+```bash
+git diff --check
+git status -sb
+```
+
+Тесты новой Ollama-интеграции используют `httpx.MockTransport` и внедрение адаптеров, **не обращаются к реальной Ollama**. Проверяются успешный JSON, отказ, неверная структура ответа, отсутствие соединения, таймауты, HTTP-ошибки, выбор провайдера, приоритет DI и интеграция с `ChatService`.
+
+На локальной версии Backend 0.7.1–0.7.2 был получен результат **221 passed** при полном прогоне. Это результат конкретного запуска, а не неизменное число тестов.
+
+## Интеграция с frontend
+
+Backend предоставляет HTTP API `/documents` и `/chat/ask`, совместимый с согласованными контрактами MVP.
+
+**Текущее состояние frontend:** в `frontend/src/api/index.ts` используется `USE_MOCK = true`. Поэтому frontend пока обращается к mock API, а не к настоящему FastAPI. В `frontend/vite.config.ts` также ещё не настроен Vite dev proxy.
+
+Подключение frontend к реальному backend — отдельный этап разработки. Для него потребуется переключить API-клиент на HTTP-запросы и настроить сетевое взаимодействие с FastAPI.
+
+При переходе с `mock` на `ollama` на стороне backend формат `ChatRequest`, `ChatResponse` и `Source` не меняется. Выбор модели осуществляется настройками backend, без отдельного пользовательского интерфейса.
+
+## Ограничения и безопасность
+
+- **Только TXT**, UTF-8 и UTF-8 BOM; нет PDF, DOCX и OCR.
+- Нет embeddings, векторного индекса, PostgreSQL/pgvector и семантического retrieval.
+- Нет авторизации, истории диалогов и многопользовательского хранилища.
+- Нет streaming-ответов, UI настройки модели и автоматической загрузки весов.
+- Нет проверки семантической правильности каждого утверждения: реальные цитаты **не гарантируют**, что весь ответ LLM ими подтверждён.
+- Данные документа считаются недоверенными; системный промпт защищает от очевидных инструкций в TXT, но не даёт строгой гарантии защиты от prompt injection.
+- Ollama работает локально, но тексты документов и вопросы отправляются выбранному серверу `FINDOCS_OLLAMA_BASE_URL`. Не задавайте удалённый сервер без осознанного решения по приватности.
+- Не записывайте в обычные логи полные документы, вопросы, промпты или ответы, содержащие пользовательские данные.
+- Один процесс Uvicorn; файловая реализация репозитория не обеспечивает межпроцессную синхронизацию.
+- Производительность и достаточность RAM/VRAM зависят от конкретной модели, квантования, контекста и оборудования. Сравнение Qwen3.5 4B, Qwen3.5 9B и Gemma 4 E4B выделено в отдельную QA-задачу.
+
+Главный принцип FinDocs: **при отсутствии подтверждённых сведений — корректный отказ, а не выдуманный ответ**.

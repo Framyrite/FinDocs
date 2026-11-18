@@ -1,4 +1,3 @@
-
 """Process TXT documents into blocks and overlapping chunks."""
 
 from uuid import UUID, uuid5
@@ -14,7 +13,6 @@ def process_txt(
     document_id: UUID,
 ) -> ProcessingResult:
     """Decode TXT data and create deterministic blocks and chunks."""
-
     text = decode_txt(data)
 
     block_id = uuid5(document_id, "block:0")

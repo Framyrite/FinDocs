@@ -1,5 +1,6 @@
 """Exceptions raised during TXT document processing."""
 
+
 class TxtProcessingError(Exception):
     """Base exception for TXT processing errors."""
 
