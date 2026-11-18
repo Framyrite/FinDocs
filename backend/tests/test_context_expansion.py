@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from app.chat.context import expand_context_candidates, prepare_llm_context
-from app.chat.sources import build_answer_sources
+from app.chat.sources import build_answer_sources, citations_support_answer
 from app.documents.models import Document, DocumentStatus
 from app.processing.models import Chunk, DocumentBlock, ProcessingResult
 from app.retrieval.lexical import RankedChunk
@@ -148,3 +148,55 @@ def test_no_expansion_over_top_k_limit() -> None:
     three = [left, right, replace(right, chunk=replace(right.chunk, id=uuid4()))]
     expanded = expand_context_candidates(three, [selected], "Почему SJF сложно?")
     assert expanded == three
+
+
+def test_problem_question_expands_across_year_boundary() -> None:
+    text = (
+        "Главная проблема приоритетного планирования заключается в долгом "
+        "ожидании процессов. Или вычислительную систему приходится выключать, "
+        "и они теряются (при остановке IBM 7094 в Массачусетском "
+        "технологическом институте в 1973 году были найдены процессы)."
+    )
+    original = make_ranked(text)
+    split = text.index("Массачусетском")
+    left = replace(
+        original,
+        chunk=replace(original.chunk, content=text[:split], end_char=split),
+    )
+    right = replace(
+        original,
+        chunk=replace(
+            original.chunk,
+            id=uuid4(),
+            position=1,
+            start_char=split - 25,
+            content=text[split - 25 :],
+        ),
+    )
+    selected = SimpleNamespace(
+        document=original.document,
+        result=ProcessingResult(
+            document_id=original.document.id,
+            blocks=[original.block],
+            chunks=[left.chunk, right.chunk],
+        ),
+    )
+    question = (
+        "В чем заключается главная проблема приоритетного планирования "
+        "и какой случай произошел при остановке IBM 7094 в 1973 году?"
+    )
+    expanded = expand_context_candidates([left], [selected], question)
+    assert [item.chunk.id for item in expanded] == [left.chunk.id, right.chunk.id]
+
+    prepared = prepare_llm_context(expanded, max_chars=3720)
+    assert "1973" in prepared.text
+
+    answer = (
+        "Главная проблема заключается в долгом ожидании процессов. "
+        "При остановке IBM 7094 в 1973 году были найдены процессы."
+    )
+    sources = build_answer_sources(prepared, question, answer)
+    assert citations_support_answer(question, answer, sources)
+    assert any("1973" in source.quote for source in sources)
+    for source in sources:
+        assert source.quote == original.block.content[source.start_char : source.end_char]

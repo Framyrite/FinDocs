@@ -67,3 +67,22 @@ def test_explicit_actor_and_year_preserves_answered(tmp_path: Path) -> None:
     )
     assert result["status"] == "answered"
     assert result["sources"]
+
+
+def test_t01_partial_answer_is_refused(tmp_path: Path) -> None:
+    source = (
+        Path(__file__).resolve().parents[2] / "qa" / "test_data" / "на_русском.txt"
+    ).read_text(encoding="utf-8")
+    question = (
+        "В каком году и каким именно директором в Массачусетском "
+        "технологическом институте при остановке IBM 7094 "
+        "были найдены процессы 1967 года?"
+    )
+    answer = (
+        "Процессы 1967 года были найдены при остановке IBM 7094 "
+        "в Массачусетском технологическом институте в 1973 году. "
+        "В предоставленных фрагментах не указано имя директора."
+    )
+    result = _ask(tmp_path, source, question, answer)
+    assert result["status"] == "insufficient_info"
+    assert result["sources"] == []

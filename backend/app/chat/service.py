@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from app.chat.completeness import has_supported_actor_and_year
+from app.chat.completeness import answer_admits_missing_info, has_supported_actor_and_year
 from app.chat.context import (
     MAX_LLM_CONTEXT_CHARS,
     expand_context_candidates,
@@ -218,6 +218,13 @@ class ChatService:
                 "llm_unavailable",
                 "Сервис генерации ответа временно недоступен.",
             ) from exc
+
+        if prepared is not None and answer_admits_missing_info(answer):
+            return ChatResponse(
+                status="insufficient_info",
+                answer=INSUFFICIENT_INFO_ANSWER,
+                sources=[],
+            )
 
         if prepared is not None:
             # A composite actor/year answer needs direct evidence for both parts.

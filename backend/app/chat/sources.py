@@ -13,6 +13,13 @@ from app.retrieval.lexical import (
     normalize_stems,
 )
 
+INSTRUCTION_QUOTE_PATTERN = re.compile(
+    r"\bсистемное\s+правило\s*:"
+    r"|\b(?:игнорируй|проигнорируй)\b[^.!?\n]{0,120}\b(?:факт|инструкц|правил)\w*"
+    r"|\b(?:ответь|выдай)\b[^.!?\n]{0,70}\b\d{2,}\b",
+    re.IGNORECASE,
+)
+
 MAX_QUOTE_LENGTH = 300
 SENTENCE_PATTERN = re.compile(r"[^.!?\r\n]+[.!?]?")
 
@@ -258,6 +265,8 @@ def build_answer_sources(
                         text, left, right, focused_terms or answer_terms
                     ):
                         quote = text[start:end]
+                        if INSTRUCTION_QUOTE_PATTERN.search(quote):
+                            continue
                         quote_terms = _answer_terms(quote)
                         if question_acronyms and not (
                             key_acronyms & quote_terms
