@@ -26,7 +26,7 @@ export class ApiNetworkError extends Error {
   }
 }
 
-// HTTP успешен, но тело не является ожидаемым JSON-объектом.
+// HTTP успешен, но формат или структура тела не соответствует ожидаемому ответу.
 export class ApiResponseError extends Error {
   readonly status: number;
 
@@ -58,11 +58,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Универсальный HTTP-клиент. Различает транспортный сбой, HTTP-ошибку
- * и некорректный успешный ответ; не заменяет валидацию всей схемы API.
+ * и некорректный успешный ответ. Проверку полей выбирает конкретный API-метод.
  */
 export async function request<T>(
   endpoint: string,
   options: RequestInit = {},
+  validate?: (value: unknown) => value is T,
 ): Promise<T> {
   // В dev config.ts подставляет /api. В production адрес задаётся явно.
   if (!API_BASE_URL) {
@@ -115,7 +116,11 @@ export async function request<T>(
   }
 
   // Успешный DELETE возвращает 204 без тела и без JSON-заголовка.
-  if (response.status === 204) return undefined as T;
+  if (response.status === 204) {
+    // Для DELETE тело не нужно, но методы с валидатором обязаны вернуть данные.
+    if (validate) throw new ApiResponseError(response.status);
+    return undefined as T;
+  }
 
   const contentType = (response.headers.get("Content-Type") || "")
     .split(";")[0]
@@ -133,8 +138,10 @@ export async function request<T>(
     throw new ApiResponseError(response.status);
   }
 
-  // Текущие JSON-методы API возвращают объекты. Проверяем только верхний
-  // уровень; типы полей Document, Answer и их вложенных данных здесь не проверяются.
-  if (!isRecord(data)) throw new ApiResponseError(response.status);
+  // Сначала проверяем общий формат, затем обязательные поля и вложенные
+  // элементы по валидатору конкретного метода. Некорректные данные не попадут в UI.
+  if (!isRecord(data) || (validate && !validate(data))) {
+    throw new ApiResponseError(response.status);
+  }
   return data as T;
 }
