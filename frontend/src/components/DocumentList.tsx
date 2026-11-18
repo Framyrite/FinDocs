@@ -1,73 +1,117 @@
-// frontend/src/components/DocumentList.tsx
-import React from "react";
+import type { ReactNode } from "react";
 import type { Document } from "../types/api";
 import { DocumentCard } from "./DocumentCard";
+import { Icon } from "./Icon";
 
 interface DocumentListProps {
+  // Список уже отфильтрован по названию в App.
   documents: Document[];
   isLoading: boolean;
+  loadError?: string | null;
+  onRetryLoad?: () => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onDelete: (id: string) => void;
   pollingErrors: Record<string, boolean>;
   onRetryPolling: (id: string) => void;
+
+  // Передаём готовую кнопку, сохраняя обработчик загрузки в App.
+  uploadControl: ReactNode;
 }
 
-export const DocumentList: React.FC<DocumentListProps> = ({
+export function DocumentList({
   documents,
   isLoading,
+  loadError = null,
+  onRetryLoad,
   searchQuery,
   onSearchChange,
   onDelete,
   pollingErrors,
   onRetryPolling,
-}) => {
-  if (isLoading) {
-    return (
-      <div style={{ padding: "20px", textAlign: "center" }}>
-        Загрузка документов...
-      </div>
-    );
-  }
+  uploadControl,
+}: DocumentListProps) {
+  const hasSearchQuery = searchQuery.trim().length > 0;
 
   return (
-    <div>
-      <div style={{ marginBottom: "16px" }}>
-        <input
-          type="text"
-          placeholder="Поиск по документам..."
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "8px 12px",
-            border: "1px solid #ddd",
-            borderRadius: "6px",
-            fontSize: "14px",
-          }}
-        />
+    <section className="documents-panel" aria-label="Список документов">
+      <div className="documents-toolbar">
+        <label className="documents-search">
+          <Icon name="search" size={18} className="documents-search-icon" />
+
+          <input
+            type="search"
+            aria-label="Поиск документов по названию"
+            placeholder="Поиск по названию документа"
+            value={searchQuery}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+        </label>
+
+        <div className="documents-upload">{uploadControl}</div>
       </div>
 
-      {documents.length === 0 ? (
-        <div style={{ padding: "40px", textAlign: "center", color: "#666" }}>
-          <p>Нет файлов</p>
-          <p style={{ fontSize: "14px" }}>
-            Загрузите первый документ, чтобы начать работу
+      {isLoading ? (
+        <div className="documents-empty" role="status">
+          <p>Загружаем документы…</p>
+        </div>
+      ) : loadError ? (
+        <div className="documents-empty" role="alert">
+          <h2>Не удалось загрузить список документов</h2>
+          <p>{loadError}</p>
+          {onRetryLoad && (
+            <button
+              type="button"
+              className="upload-cancel-button"
+              onClick={onRetryLoad}
+            >
+              Повторить
+            </button>
+          )}
+        </div>
+      ) : documents.length === 0 ? (
+        <div className="documents-empty">
+          {/* Пустую библиотеку отличаем от отсутствия совпадений
+              по введённому названию. */}
+          <h2>
+            {hasSearchQuery
+              ? "Документы не найдены"
+              : "Здесь будут ваши документы"}
+          </h2>
+
+          <p>
+            {hasSearchQuery
+              ? "Попробуйте изменить название в строке поиска."
+              : "Загрузите лекцию или конспект, чтобы задавать вопросы по своим материалам."}
           </p>
         </div>
       ) : (
-        <div>
-          {documents.map((doc) => (
-            <DocumentCard
-              key={doc.id}
-              doc={doc}
-              onDelete={onDelete}
-              hasPollingError={!!pollingErrors[doc.id]}
-              onRetryPolling={onRetryPolling}
-            />
-          ))}
+        <div className="documents-table" role="table" aria-label="Документы">
+          <div role="rowgroup">
+            <div className="documents-columns" role="row">
+              <div role="columnheader">Название документа</div>
+              <div role="columnheader">Статус</div>
+              <div role="columnheader">Дата загрузки</div>
+
+              <div role="columnheader" className="documents-actions-heading">
+                <span className="visually-hidden">Действия</span>
+              </div>
+            </div>
+          </div>
+
+          <div role="rowgroup">
+            {documents.map((doc) => (
+              <DocumentCard
+                key={doc.id}
+                doc={doc}
+                onDelete={onDelete}
+                hasPollingError={Boolean(pollingErrors[doc.id])}
+                onRetryPolling={onRetryPolling}
+              />
+            ))}
+          </div>
         </div>
       )}
-    </div>
+    </section>
   );
-};
+}

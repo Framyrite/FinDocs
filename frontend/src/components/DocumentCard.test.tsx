@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { DocumentCard } from "./DocumentCard";
 import type { Document } from "../types/api";
@@ -24,12 +24,14 @@ describe("DocumentCard", () => {
         onRetryPolling={() => {}}
       />,
     );
-    expect(screen.getByText("test.txt", { exact: false })).toBeInTheDocument();
+
+    expect(screen.getByText("test.txt")).toBeInTheDocument();
     expect(screen.getByText("Готов")).toBeInTheDocument();
   });
 
-  it("вызывает onDelete при клике на кнопку", () => {
+  it("вызывает onDelete после выбора удаления в меню", () => {
     const handleDelete = vi.fn();
+
     render(
       <DocumentCard
         doc={mockDoc}
@@ -39,9 +41,18 @@ describe("DocumentCard", () => {
       />,
     );
 
-    const button = screen.getByText("Удалить");
-    button.click();
+    expect(
+      screen.queryByRole("button", { name: "Удалить" }),
+    ).not.toBeInTheDocument();
 
-    expect(handleDelete).toHaveBeenCalledWith("123");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Действия с файлом «test.txt»",
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
+
+    expect(handleDelete).toHaveBeenCalledExactlyOnceWith("123");
   });
 });

@@ -1,151 +1,189 @@
-// frontend/src/components/SearchScopeSelector.tsx
-import React, { useState, useEffect, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { Icon } from "./Icon";
 import type { Document } from "../types/api";
 
 interface SearchScopeSelectorProps {
   documents: Document[];
+
+  // null — поиск по всем готовым документам.
+  // Массив — явный выбор. Пустой массив означает, что ничего не выбрано.
   selectedIds: string[] | null;
+
   onChange: (ids: string[] | null) => void;
 }
 
-export const SearchScopeSelector: React.FC<SearchScopeSelectorProps> = ({
+export function SearchScopeSelector({
   documents,
   selectedIds,
   onChange,
-}) => {
+}: SearchScopeSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownId = useId();
+
+  // В область поиска можно включать только обработанные документы.
+  const readyDocuments = documents.filter(
+    (document) => document.status === "ready",
+  );
+
+  // Режим «Все» не ставит галочки у отдельных файлов:
+  // галочки отражают исключительно явный выбор пользователя.
+  const selectedReadyIds = readyDocuments
+    .filter(
+      (document) => selectedIds !== null && selectedIds.includes(document.id),
+    )
+    .map((document) => document.id);
+
+  // Поиск меняет только видимый список, сохраняя выбранные файлы.
+  const normalizedQuery = searchQuery.trim().toLocaleLowerCase("ru");
+
+  const filteredDocuments = readyDocuments.filter((document) =>
+    document.filename.toLocaleLowerCase("ru").includes(normalizedQuery),
+  );
+
+  const isAllSelected = selectedIds === null;
+
+  const selectionLabel = isAllSelected
+    ? "Все документы"
+    : selectedReadyIds.length === 0
+      ? "Документы не выбраны"
+      : `Выбрано файлов: ${selectedReadyIds.length}`;
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
       if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
+        event.target instanceof Node &&
+        !containerRef.current?.contains(event.target)
       ) {
         setIsOpen(false);
       }
     };
 
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
 
+        // При закрытии с клавиатуры возвращаем фокус на кнопку.
+        buttonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    // Убираем обработчики при закрытии списка и размонтировании.
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen]);
 
-  const readyDocs = documents.filter((d) => d.status === "ready");
+  const toggleDocument = (id: string) => {
+    const nextIds = selectedReadyIds.includes(id)
+      ? selectedReadyIds.filter((selectedId) => selectedId !== id)
+      : [...selectedReadyIds, id];
 
-  const isAllSelected = selectedIds === null;
-  const isEmptySelection = selectedIds !== null && selectedIds.length === 0;
-
-  const handleSelectAll = () => {
-    onChange(null);
-    setIsOpen(false);
+    // Не расширяем область поиска при снятии последней галочки.
+    // В режим «Все» пользователь возвращается только отдельной кнопкой.
+    onChange(nextIds);
   };
 
-  const handleToggleDocument = (id: string) => {
-    const current = selectedIds || [];
-
-    if (current.includes(id)) {
-      const next = current.filter((item) => item !== id);
-      onChange(next);
-    } else {
-      onChange([...current, id]);
+  const toggleDropdown = () => {
+    // При новом открытии показываем полный список.
+    // Сам выбор документов при этом сохраняется.
+    if (!isOpen) {
+      setSearchQuery("");
     }
+
+    setIsOpen((previous) => !previous);
   };
 
   return (
-    <div
-      ref={dropdownRef}
-      style={{ position: "relative", display: "inline-block" }}
-    >
+    <div className="search-scope" ref={containerRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          padding: "8px 12px",
-          backgroundColor: "#fff",
-          border: "1px solid #ccc",
-          borderRadius: "6px",
-          cursor: "pointer",
-          fontSize: "14px",
-          color: "#333",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-        }}
+        ref={buttonRef}
+        type="button"
+        className="search-scope-button"
+        aria-label={`Область поиска: ${selectionLabel}`}
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? dropdownId : undefined}
+        onClick={toggleDropdown}
       >
-        {isAllSelected
-          ? "Все документы"
-          : isEmptySelection
-            ? "Ничего не выбрано"
-            : `Выбрано: ${selectedIds?.length}`}
-        <span>{isOpen ? "▲" : "▼"}</span>
+        <span>{selectionLabel}</span>
+
+        <Icon
+          name="chevron-down"
+          size={16}
+          className={`search-scope-chevron ${
+            isOpen ? "search-scope-chevron--open" : ""
+          }`}
+        />
       </button>
 
       {isOpen && (
         <div
-          style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            marginTop: "4px",
-            backgroundColor: "white",
-            color: "#333",
-            border: "1px solid #ccc",
-            borderRadius: "6px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-            zIndex: 10,
-            minWidth: "250px",
-            padding: "8px 0",
-          }}
+          id={dropdownId}
+          className="search-scope-dropdown"
+          role="group"
+          aria-label="Документы для поиска"
         >
-          <div
-            onClick={handleSelectAll}
-            style={{
-              padding: "8px 12px",
-              cursor: "pointer",
-              backgroundColor: isAllSelected ? "#e8f5e9" : "transparent",
-              fontWeight: isAllSelected ? "bold" : "normal",
-            }}
+          <button
+            type="button"
+            className="search-scope-all"
+            aria-pressed={isAllSelected}
+            onClick={() => onChange(null)}
           >
+            <span className="search-scope-all-mark" aria-hidden="true">
+              {isAllSelected && <Icon name="check" size={16} />}
+            </span>
             Все готовые документы
-          </div>
+          </button>
 
-          <div style={{ borderTop: "1px solid #eee", margin: "4px 0" }} />
+          <div className="search-scope-divider" role="separator" />
 
-          {readyDocs.length === 0 ? (
-            <div
-              style={{ padding: "8px 12px", color: "#888", fontSize: "13px" }}
-            >
-              Нет готовых документов
-            </div>
+          <label className="search-scope-search">
+            <span className="visually-hidden">Поиск файлов для выбора</span>
+
+            <Icon
+              name="search"
+              size={16}
+              className="search-scope-search-icon"
+            />
+
+            <input
+              type="search"
+              placeholder="Найти файл"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+          </label>
+
+          {readyDocuments.length === 0 ? (
+            <p className="search-scope-empty">Готовых документов пока нет.</p>
+          ) : filteredDocuments.length === 0 ? (
+            <p className="search-scope-empty">Файлы не найдены.</p>
           ) : (
-            readyDocs.map((doc) => (
-              <div
-                key={doc.id}
-                onClick={() => handleToggleDocument(doc.id)}
-                style={{
-                  padding: "8px 12px",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  fontSize: "13px",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedIds?.includes(doc.id) || false}
-                  readOnly
-                />
-                {doc.filename}
-              </div>
-            ))
+            <div className="search-scope-files">
+              {filteredDocuments.map((document) => (
+                <label key={document.id} className="search-scope-file">
+                  <input
+                    type="checkbox"
+                    checked={selectedReadyIds.includes(document.id)}
+                    onChange={() => toggleDocument(document.id)}
+                  />
+
+                  <span title={document.filename}>{document.filename}</span>
+                </label>
+              ))}
+            </div>
           )}
         </div>
       )}
     </div>
   );
-};
+}

@@ -1,184 +1,1242 @@
-.counter {
-  font-size: 16px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 2px solid transparent;
-  transition: border-color 0.3s;
-  margin-bottom: 24px;
-
-  &:hover {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-}
-
-.hero {
-  position: relative;
-
-  .base,
-  .framework,
-  .vite {
-    inset-inline: 0;
-    margin: 0 auto;
-  }
-
-  .base {
-    width: 170px;
-    position: relative;
-    z-index: 0;
-  }
-
-  .framework,
-  .vite {
-    position: absolute;
-  }
-
-  .framework {
-    z-index: 1;
-    top: 34px;
-    height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
-  }
-
-  .vite {
-    z-index: 0;
-    top: 107px;
-    height: 26px;
-    width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
-  }
-}
-
-#center {
+.app-shell {
   display: flex;
   flex-direction: column;
-  gap: 25px;
-  place-content: center;
-  place-items: center;
-  flex-grow: 1;
-
-  @media (max-width: 1024px) {
-    padding: 32px 20px 24px;
-    gap: 18px;
-  }
+  min-height: 100dvh;
+  background: var(--fd-background);
 }
 
-#next-steps {
+.app-header {
   display: flex;
-  border-top: 1px solid var(--border);
-  text-align: left;
-
-  & > div {
-    flex: 1 1 0;
-    padding: 32px;
-    @media (max-width: 1024px) {
-      padding: 24px 20px;
-    }
-  }
-
-  .icon {
-    margin-bottom: 16px;
-    width: 22px;
-    height: 22px;
-  }
-
-  @media (max-width: 1024px) {
-    flex-direction: column;
-    text-align: center;
-  }
+  align-items: center;
+  flex-shrink: 0;
+  gap: 44px;
+  min-height: 84px;
+  padding: 12px 48px;
+  background: var(--fd-surface);
+  border-bottom: 1px solid var(--fd-border);
 }
 
-#docs {
-  border-right: 1px solid var(--border);
+/* Логотип */
 
-  @media (max-width: 1024px) {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-}
-
-#next-steps ul {
-  list-style: none;
+.brand {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 10px;
   padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.brand-symbol {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+
+.brand-copy {
   display: flex;
-  gap: 8px;
-  margin: 32px 0 0;
-
-  .logo {
-    height: 18px;
-  }
-
-  a {
-    color: var(--text-h);
-    font-size: 16px;
-    border-radius: 6px;
-    background: var(--social-bg);
-    display: flex;
-    padding: 6px 12px;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: box-shadow 0.3s;
-
-    &:hover {
-      box-shadow: var(--shadow);
-    }
-    .button-icon {
-      height: 18px;
-      width: 18px;
-    }
-  }
-
-  @media (max-width: 1024px) {
-    margin-top: 20px;
-    flex-wrap: wrap;
-    justify-content: center;
-
-    li {
-      flex: 1 1 calc(50% - 8px);
-    }
-
-    a {
-      width: 100%;
-      justify-content: center;
-      box-sizing: border-box;
-    }
-  }
+  flex-direction: column;
+  gap: 2px;
 }
 
-#spacer {
-  height: 88px;
-  border-top: 1px solid var(--border);
-  @media (max-width: 1024px) {
-    height: 48px;
-  }
+.brand-wordmark {
+  font-size: 25px;
+  line-height: 30px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
 }
 
-.ticks {
-  position: relative;
+.brand-fin {
+  color: var(--fd-logo-fin);
+}
+
+.brand-docs {
+  color: var(--fd-logo-docs);
+}
+
+.brand-tagline {
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--fd-text);
+}
+
+/* Основная навигация */
+
+.main-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-tab {
+  min-height: 42px;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fd-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.nav-tab:hover {
+  background: var(--fd-accent-soft);
+  color: var(--fd-accent);
+}
+
+.nav-tab--active {
+  background: var(--fd-accent-soft);
+  color: var(--fd-accent);
+}
+
+/* Рабочая область */
+
+.app-workspace {
+  flex: 1;
+  min-width: 0;
+  padding: 16px 48px 24px;
+}
+
+.documents-workspace {
   width: 100%;
+}
 
-  &::before,
-  &::after {
-    content: "";
-    position: absolute;
-    top: -4.5px;
-    border: 5px solid transparent;
-  }
+/* Библиотека: поиск и загрузка над общей таблицей файлов. */
+.documents-panel {
+  width: 100%;
+  min-width: 0;
+  min-height: 480px;
+  background: var(--fd-surface);
+  border: 1px solid var(--fd-border);
+  border-radius: 16px;
+}
 
-  &::before {
-    left: 0;
-    border-left-color: var(--border);
+.documents-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--fd-border);
+}
+
+.documents-search {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 10px;
+  min-width: 0;
+  max-width: 480px;
+  min-height: 42px;
+  padding: 0 12px;
+  background: var(--fd-surface);
+  border: 1px solid var(--fd-border);
+  border-radius: 8px;
+}
+
+.documents-search:focus-within {
+  border-color: var(--fd-accent);
+  outline: 2px solid var(--fd-accent-soft);
+  outline-offset: 2px;
+}
+
+.documents-search-icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: var(--fd-text);
+}
+
+.documents-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fd-heading);
+  font-size: 13px;
+}
+
+.documents-search input::placeholder {
+  color: var(--fd-subtle);
+}
+
+.documents-upload {
+  flex-shrink: 0;
+}
+
+/* Одна сетка для заголовков и строк удерживает колонки на общих позициях. */
+.documents-columns,
+.document-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 190px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 24px;
+}
+
+/* Симметричные крайние дорожки удерживают статус в середине всей строки.
+   Название занимает две левые дорожки; дата и действия — правые. */
+.documents-columns [role="columnheader"]:nth-child(1),
+.document-name-cell {
+  grid-column: 1 / 3;
+}
+
+.documents-columns [role="columnheader"]:nth-child(2),
+.document-status-cell {
+  grid-column: 3;
+  text-align: center;
+}
+
+.documents-columns [role="columnheader"]:nth-child(3),
+.document-date {
+  grid-column: 4;
+  justify-self: end;
+}
+
+.documents-actions-heading,
+.document-actions {
+  grid-column: 5;
+}
+
+.documents-columns {
+  min-height: 44px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  background: var(--fd-background);
+  border-bottom: 1px solid var(--fd-border);
+  color: var(--fd-text);
+  font-size: 12px;
+}
+
+.document-row {
+  min-height: 82px;
+  border-bottom: 1px solid var(--fd-border);
+}
+
+.document-row:last-child {
+  border-bottom: 0;
+}
+
+.document-row:hover {
+  background: var(--fd-background);
+}
+
+.document-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.document-file-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 42px;
+  border-radius: 8px;
+  background: var(--fd-accent-soft);
+  color: var(--fd-accent);
+}
+
+.document-file-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.document-name-content {
+  min-width: 0;
+}
+
+.document-name {
+  overflow: hidden;
+  color: var(--fd-heading);
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-size {
+  margin-top: 3px;
+  color: var(--fd-subtle);
+  font-size: 11px;
+}
+
+.document-status-cell {
+  min-width: 0;
+  text-align: center;
+}
+
+.document-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.document-status--ready {
+  color: var(--fd-status-ready);
+  background: var(--fd-status-ready-bg);
+}
+
+.document-status--processing {
+  color: var(--fd-status-processing);
+  background: var(--fd-status-processing-bg);
+}
+
+.document-status--error {
+  color: var(--fd-status-error);
+  background: var(--fd-status-error-bg);
+}
+
+.document-error {
+  margin-top: 6px;
+  color: var(--fd-status-error);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.document-polling-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.document-polling-error button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fd-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.document-date {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  color: var(--fd-subtle);
+  font-size: 12px;
+}
+
+.document-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.document-menu-wrapper {
+  position: relative;
+}
+
+.document-menu-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fd-text);
+}
+
+.document-menu-button:hover,
+.document-menu-button[aria-expanded="true"] {
+  background: var(--fd-accent-soft);
+  color: var(--fd-accent);
+}
+
+.document-menu-button svg {
+  width: 21px;
+  height: 21px;
+}
+
+.document-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  min-width: 150px;
+  padding: 6px;
+  border: 1px solid var(--fd-border);
+  border-radius: 10px;
+  background: var(--fd-surface);
+  box-shadow: 0 8px 24px rgb(7 49 73 / 12%);
+}
+
+.document-delete-button {
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fd-status-error);
+  text-align: left;
+}
+
+.document-delete-button:hover {
+  background: var(--fd-status-error-bg);
+}
+
+/* Скрываем визуально, сохраняя подписи для скринридера. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.documents-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 380px;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.documents-empty h2 {
+  font-size: 22px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.documents-empty p {
+  max-width: 440px;
+  color: var(--fd-text);
+}
+
+/* Окно загрузки: native dialog, выбранный файл и ошибки отправки. */
+.upload-button,
+.upload-cancel-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.upload-button {
+  background: var(--fd-accent);
+  color: white;
+}
+
+.upload-button:not(:disabled):hover {
+  background: var(--fd-heading);
+}
+
+.upload-button:disabled {
+  background: var(--fd-accent-soft);
+  color: var(--fd-subtle);
+}
+
+.upload-button > span {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.upload-dialog {
+  width: min(860px, calc(100vw - 96px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  border: 1px solid var(--fd-border);
+  border-radius: 16px;
+  background: var(--fd-surface);
+  color: var(--fd-text);
+  box-shadow: 0 24px 80px rgb(7 49 73 / 18%);
+}
+
+/* Длинное окно прокручивается колесом, тачпадом и с клавиатуры,
+   но полоса прокрутки не отображается. Список файлов отдельно не скроллится. */
+.upload-dialog::-webkit-scrollbar {
+  display: none;
+}
+
+.upload-dialog::backdrop {
+  background: rgb(7 49 73 / 30%);
+}
+
+.upload-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 28px;
+}
+
+.upload-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* Крестик заголовка крупнее; область нажатия остаётся удобной. */
+.upload-dialog-header .upload-close-button {
+  width: 40px;
+  height: 40px;
+}
+
+.upload-dialog-header h2 {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.upload-close-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fd-text);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.upload-close-button:not(:disabled):hover {
+  background: var(--fd-accent-soft);
+  color: var(--fd-accent);
+}
+
+.upload-description {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.upload-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 140px;
+  padding: 24px;
+  border: 1px dashed var(--fd-border);
+  border-radius: 12px;
+  background: var(--fd-background);
+  color: var(--fd-text);
+  text-align: center;
+  font-size: 12px;
+}
+
+.upload-picker:not(:disabled):hover {
+  border-color: var(--fd-accent);
+  background: var(--fd-accent-soft);
+}
+
+.upload-picker-title {
+  color: var(--fd-heading);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.upload-selected-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--fd-border);
+  border-radius: 10px;
+}
+
+/* Название и размер делят первую строку; состояния и ошибки идут ниже.
+   Размер не сжимается, а длинное название сокращается перед ним. */
+.upload-file-details {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 16px;
+  min-width: 0;
+}
+
+.upload-file-details > .upload-item-status,
+.upload-file-details > .upload-file-error {
+  grid-column: 1 / -1;
+}
+
+.upload-file-name {
+  overflow: hidden;
+  color: var(--fd-heading);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-file-size {
+  color: var(--fd-subtle);
+  font-size: inherit;
+  white-space: nowrap;
+}
+
+.upload-error {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--fd-status-error-bg);
+  color: var(--fd-status-error);
+  font-size: 13px;
+}
+
+.upload-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.upload-cancel-button {
+  border-color: var(--fd-border);
+  background: var(--fd-surface);
+  color: var(--fd-text);
+}
+
+.upload-cancel-button:not(:disabled):hover {
+  background: var(--fd-accent-soft);
+}
+
+/* Выбор области поиска: «Все» отделено от явного выбора отдельных файлов. */
+.search-scope {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.search-scope-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 244px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid var(--fd-border);
+  border-radius: 8px;
+  background: var(--fd-chat-action-bg);
+  color: var(--fd-chat-action);
+  text-align: left;
+  font-size: 13px;
+}
+
+.search-scope-button:hover {
+  background: var(--fd-chat-action-hover-bg);
+  color: var(--fd-chat-action-hover);
+}
+
+.search-scope-button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-scope-chevron {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.search-scope-chevron--open {
+  transform: rotate(180deg);
+}
+
+.search-scope-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: 340px;
+  max-width: calc(100vw - 48px);
+  padding: 8px;
+  border: 1px solid var(--fd-border);
+  border-radius: 12px;
+  background: var(--fd-surface);
+  box-shadow: 0 8px 28px rgb(7 49 73 / 12%);
+}
+
+.search-scope-all,
+.search-scope-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.search-scope-all {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--fd-heading);
+  text-align: left;
+}
+
+.search-scope-all[aria-pressed="true"] {
+  background: var(--fd-accent-soft);
+  color: var(--fd-accent);
+}
+
+.search-scope-all:hover,
+.search-scope-file:hover {
+  background: var(--fd-accent-soft);
+}
+
+.search-scope-all-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.search-scope-divider {
+  height: 1px;
+  margin: 8px 4px;
+  background: var(--fd-border);
+}
+
+.search-scope-files {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.search-scope-file {
+  cursor: pointer;
+}
+
+.search-scope-file input {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--fd-accent);
+}
+
+.search-scope-file > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-scope-empty {
+  padding: 12px 10px;
+  color: var(--fd-text);
+  font-size: 13px;
+}
+
+.search-scope-search {
+  display: block;
+  margin: 0 4px 8px;
+}
+
+.search-scope-search input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--fd-border);
+  border-radius: 8px;
+  background: var(--fd-background);
+  color: var(--fd-heading);
+  font-size: 12px;
+}
+
+.search-scope-search input::placeholder {
+  color: var(--fd-subtle);
+}
+
+/* Чат и правая панель источников. Высота учитывает текущую шапку
+   84px и вертикальные отступы рабочей области 16px + 24px. */
+.chat-layout {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  height: calc(100dvh - 124px);
+  min-height: 480px;
+}
+
+.chat-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--fd-border);
+  border-radius: 16px;
+  background: var(--fd-surface);
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 24px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--fd-border);
+}
+
+.chat-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-scope-controls {
+  flex-shrink: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* Прокручивается содержимое чата, а шапка и ввод остаются на своих местах. */
+.chat-thread {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 28px 32px;
+}
+
+.chat-thread:focus-visible {
+  outline-offset: -3px;
+}
+
+.chat-welcome {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.chat-welcome h2 {
+  max-width: 500px;
+  font-size: 25px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.chat-welcome p {
+  max-width: 440px;
+  color: var(--fd-text);
+}
+
+.chat-messages {
+  width: 100%;
+  max-width: 840px;
+  margin: 0 auto;
+}
+
+.chat-user-message {
+  width: fit-content;
+  max-width: 80%;
+  margin: 0 0 28px auto;
+  padding: 14px 18px;
+  border-radius: 12px 12px 4px 12px;
+  background: var(--fd-user-message-bg);
+  color: var(--fd-user-message-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-answer {
+  color: var(--fd-text);
+  line-height: 1.8;
+}
+
+.chat-answer-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-waiting {
+  color: var(--fd-accent);
+}
+
+.chat-notice {
+  padding: 14px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.chat-notice--error {
+  background: var(--fd-status-error-bg);
+  color: var(--fd-status-error);
+}
+
+.chat-notice--warning {
+  margin-bottom: 16px;
+  background: var(--fd-status-processing-bg);
+  color: var(--fd-heading);
+}
+
+.chat-retry-button {
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.chat-answer-actions {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--fd-border);
+}
+
+.chat-sources-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--fd-accent);
+  font-size: 13px;
+}
+
+.chat-sources-button span {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--fd-accent-soft);
+  font-size: 11px;
+}
+
+.chat-composer-area {
+  flex-shrink: 0;
+  padding: 12px 32px 20px;
+}
+
+.chat-composer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 12px;
+  border: 1px solid var(--fd-border);
+  border-radius: 12px;
+  background: var(--fd-surface);
+}
+
+.chat-composer:focus-within {
+  border-color: var(--fd-accent);
+}
+
+.chat-composer textarea {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  min-height: 32px;
+  max-height: 56px;
+  padding: 4px;
+  resize: none;
+  overflow-y: auto;
+  scrollbar-width: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fd-text);
+  line-height: 24px;
+}
+
+/* После двух строк текст прокручивается внутри поля без видимой полосы.
+   Содержимое и перемещение курсора сохраняются; ручное растягивание отключено. */
+.chat-composer textarea::-webkit-scrollbar {
+  display: none;
+}
+
+.chat-composer textarea::placeholder {
+  color: var(--fd-subtle);
+}
+
+/* Цвет отправки сохраняется и при disabled; недоступность определяется
+   атрибутом кнопки, а не обязательным изменением её цвета. */
+.chat-send-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: var(--fd-chat-action-bg);
+  color: var(--fd-chat-action);
+}
+
+.chat-send-button:not(:disabled):hover {
+  background: var(--fd-chat-action-hover-bg);
+  color: var(--fd-chat-action-hover);
+}
+
+.chat-send-button svg {
+  width: 22px;
+  height: 22px;
+}
+
+.chat-composer-note {
+  max-width: 840px;
+  margin: 8px auto 0;
+  color: var(--fd-subtle);
+  font-size: 11px;
+}
+
+.chat-sources-panel {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: clamp(360px, 32vw, 460px);
+  min-height: 0;
+  border: 1px solid var(--fd-border);
+  border-radius: 16px;
+  background: var(--fd-surface);
+}
+
+.chat-sources-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 16px;
+  padding: 20px 24px;
+}
+
+.chat-sources-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.chat-close-sources {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fd-text);
+  font-size: 24px;
+}
+
+.chat-close-sources:hover {
+  background: var(--fd-accent-soft);
+}
+
+.chat-sources-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 24px 24px;
+}
+
+/* Источники показывают имя файла и дословную цитату из ответа API. */
+.source-card {
+  padding: 20px;
+  border: 1px solid var(--fd-border);
+  border-radius: 12px;
+}
+
+.source-card + .source-card {
+  margin-top: 16px;
+}
+
+.source-card-number {
+  margin-bottom: 6px;
+  color: var(--fd-subtle);
+  font-size: 11px;
+}
+
+.source-card-filename {
+  color: var(--fd-heading);
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.source-card-quote {
+  margin: 18px 0 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--fd-accent);
+  color: var(--fd-text);
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+/* Форма вопроса и диалог UploadButton — соседи, без вложенных form. */
+.chat-question-form {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+}
+
+.chat-attach-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: var(--fd-chat-action-bg);
+  color: var(--fd-chat-action);
+}
+
+.chat-attach-button:not(:disabled):hover {
+  background: var(--fd-chat-action-hover-bg);
+  color: var(--fd-chat-action-hover);
+}
+
+.chat-attach-button svg {
+  width: 22px;
+  height: 22px;
+}
+
+.nav-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Иконка находится внутри поля, не перекрывая ввод текста. */
+.search-scope-search {
+  position: relative;
+}
+
+.search-scope-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  color: var(--fd-text);
+  pointer-events: none;
+}
+
+.search-scope-search input {
+  padding-left: 34px;
+}
+
+/* Иконки наследуют цвет соответствующей статусной плашки. */
+.document-status {
+  gap: 6px;
+}
+
+.document-delete-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Вращение показываем только во время processing,
+   а не во время ожидания начала обработки. */
+.document-status-icon--spinning {
+  animation: document-status-spin 1s linear infinite;
+}
+
+@keyframes document-status-spin {
+  to {
+    transform: rotate(360deg);
   }
-  &::after {
-    right: 0;
-    border-right-color: var(--border);
+}
+
+/* Подпись состояния сохраняется и без анимации. */
+@media (prefers-reduced-motion: reduce) {
+  .document-status-icon--spinning {
+    animation: none;
   }
+}
+
+/* Очередь загрузки: каждый файл имеет собственный результат запроса.
+   Это состояния отправки, а не статусы серверной TXT-обработки. */
+.upload-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  list-style: none;
+}
+
+.upload-file-list .upload-selected-file {
+  flex-shrink: 0;
+}
+
+.upload-item-status,
+.upload-progress {
+  color: var(--fd-text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.upload-item-status--uploading,
+.upload-item-status--accepted {
+  color: var(--fd-accent);
+}
+
+.upload-item-status--invalid,
+.upload-item-status--failed,
+.upload-file-error {
+  color: var(--fd-status-error);
+}
+
+.upload-file-error {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }

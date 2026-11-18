@@ -57,7 +57,7 @@ export function usePolling(
     };
   }, []);
 
-  // ЭФФЕКТ 1: Управление списком опрашиваемых документов
+  // ЭФФЕКТ 2: Управление списком опрашиваемых документов
   useEffect(() => {
     const currentIds = new Set(documentIds);
 

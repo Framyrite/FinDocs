@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import type { Document, Answer } from "./types/api";
 import { api } from "./api";
+import { ApiRequestError, getApiErrorMessage } from "./api/client";
 import { DocumentList } from "./components/DocumentList";
 import { UploadButton } from "./components/UploadButton";
 import { Chat } from "./components/Chat";
@@ -13,9 +14,13 @@ import { usePolling } from "./hooks/usePolling";
 function App() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [documentsLoadError, setDocumentsLoadError] = useState<string | null>(
+    null,
+  );
+  const [documentsLoadAttempt, setDocumentsLoadAttempt] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [isUploading, setIsUploading] = useState(false);
-  // null = все документы, массив = выбранные
+  // null = все готовые документы; [] = явный пустой выбор; массив ID = выбранные
   const [selectedDocIds, setSelectedDocIds] = useState<string[] | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("chat"); // По умолчанию открыт чат
 
@@ -25,18 +30,41 @@ function App() {
   );
 
   useEffect(() => {
-    // Загружаем документы при старте
+    // Ошибка загрузки — отдельное состояние, а не пустая библиотека.
+    // Повтор запускается счётчиком; старый запрос не обновляет состояние
+    // после cleanup (включая повторный запуск эффекта в StrictMode).
+    let cancelled = false;
     api
       .getDocuments()
       .then((data) => {
+        if (cancelled) return;
         setDocuments(data.items);
+        setDocumentsLoadError(null);
         setIsLoading(false);
       })
-      .catch(() => {
-        alert("Не удалось загрузить список документов");
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setDocumentsLoadError(
+          getApiErrorMessage(
+            error,
+            "Проверьте подключение и попробуйте ещё раз.",
+          ),
+        );
         setIsLoading(false);
       });
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentsLoadAttempt]);
+
+  const handleRetryDocumentsLoad = () => {
+    if (isLoading) return;
+    // Во время повтора показываем загрузку и блокируем повторный запрос.
+    setIsLoading(true);
+    setDocumentsLoadError(null);
+    setDocumentsLoadAttempt((previous) => previous + 1);
+  };
 
   // Вычисляем ID документов, которые нужно опрашивать (uploaded или processing)
   const pollingIds = useMemo(() => {
@@ -77,44 +105,88 @@ function App() {
     });
   };
 
-  const handleUpload = async (file: File) => {
+  // Ошибку отправки не перехватываем здесь: её покажет окно UploadButton.
+  // finally снимает общий флаг загрузки и при успехе, и при ошибке.
+  const handleUpload = async (file: File): Promise<void> => {
     setIsUploading(true);
+
     try {
-      const newDoc = await api.uploadDocument(file);
+      const newDocument = await api.uploadDocument(file);
 
-      // Обновляем список
-      const data = await api.getDocuments();
-      setDocuments(data.items);
-
-      // Polling запустится автоматически, так как новый документ попадет в pollingIds
-      console.log("Загружен новый документ:", newDoc);
-    } catch {
-      alert("Ошибка загрузки файла");
+      // API возвращает созданный документ: добавляем его первым без повторного
+      // запроса списка. Его промежуточный статус автоматически включит polling.
+      setDocuments((previous) => [
+        newDocument,
+        ...previous.filter((document) => document.id !== newDocument.id),
+      ]);
     } finally {
       setIsUploading(false);
     }
   };
 
+  // Удаляем известный отсутствующий документ и из библиотеки, и из выбора.
+  // Пустой явный выбор не переключается на «Все».
+  const removeDocumentFromState = (id: string) => {
+    setDocuments((previous) =>
+      previous.filter((document) => document.id !== id),
+    );
+    setSelectedDocIds((previous) =>
+      previous === null
+        ? null
+        : previous.filter((documentId) => documentId !== id),
+    );
+    setPollingErrors((previous) => {
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm("Удалить документ?")) return;
+
     try {
       await api.deleteDocument(id);
-      setDocuments((prev) => prev.filter((d) => d.id !== id));
+      removeDocumentFromState(id);
+    } catch (error) {
+      if (!(error instanceof ApiRequestError) || error.status !== 404) {
+        // При сети, 403 или 5xx отсутствие документа не подтверждено:
+        // не удаляем строку и не меняем выбор пользователя.
+        alert(getApiErrorMessage(error, "Ошибка удаления"));
+        return;
+      }
 
-      // Если удаленный документ был выбран — убираем его из выбора
-      setSelectedDocIds((prev) => {
-        if (prev === null) return null;
-        return prev.filter((item) => item !== id);
-      });
+      // 404 подтверждает, что документа уже нет. Это не успешный DELETE.
+      // Убираем устаревшую строку сразу, даже если обновление списка даст сбой.
+      removeDocumentFromState(id);
 
-      // Убираем ошибку polling для удаленного документа
-      setPollingErrors((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    } catch {
-      alert("Ошибка удаления");
+      try {
+        const data = await api.getDocuments();
+        const existingIds = new Set(data.items.map((document) => document.id));
+        setDocuments(data.items);
+
+        // В другой вкладке могли удалить несколько документов. Сверяем весь
+        // явный выбор с ответом сервера, не расширяя его до всей библиотеки.
+        setSelectedDocIds((previous) =>
+          previous === null
+            ? null
+            : previous.filter((documentId) => existingIds.has(documentId)),
+        );
+        setPollingErrors((previous) =>
+          Object.fromEntries(
+            Object.entries(previous).filter(([documentId]) =>
+              existingIds.has(documentId),
+            ),
+          ),
+        );
+      } catch {
+        alert(
+          "Документ уже отсутствует на сервере. Не удалось обновить список остальных документов. Обновите страницу, чтобы повторить загрузку списка.",
+        );
+        return;
+      }
+
+      alert("Документ уже отсутствует на сервере. Список документов обновлён.");
     }
   };
 
@@ -123,6 +195,11 @@ function App() {
     question: string,
     docIds: string[] | null,
   ): Promise<Answer> => {
+    // Пустой выбор допустим в UI, но запрещён контрактом запроса.
+    // Защита остаётся и на границе API, независимо от disabled в форме.
+    if (docIds !== null && docIds.length === 0) {
+      throw new Error("Выберите документы для поиска");
+    }
     return api.askQuestion({ question, document_ids: docIds });
   };
 
@@ -135,58 +212,57 @@ function App() {
     pollingErrors,
   );
 
+  // Этот фильтр влияет только на список документов, не на область поиска чата.
   const filteredDocs = documents.filter((doc) =>
     doc.filename.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  // Проверяем, есть ли хотя бы один готовый документ
-  const hasReadyDocuments =
-    documents.some((doc) => doc.status === "ready") &&
-    (selectedDocIds === null || selectedDocIds.length > 0);
+  // Отправка доступна, только если готовый документ есть в выбранной области.
+  const hasReadyDocuments = documents.some(
+    (document) =>
+      document.status === "ready" &&
+      (selectedDocIds === null || selectedDocIds.includes(document.id)),
+  );
 
   return (
-    <div style={{ maxWidth: "800px", margin: "0 auto", padding: "20px" }}>
-      <h1 style={{ marginBottom: "16px" }}>FinDocs</h1>
-
+    <div className="app-shell">
       <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Вкладка Документы */}
-      {activeTab === "documents" && (
-        <>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "20px",
-            }}
-          >
-            <h2>Мои документы</h2>
-            <UploadButton onUpload={handleUpload} disabled={isUploading} />
-          </div>
+      <main className="app-workspace">
+        {activeTab === "documents" && (
+          <section className="documents-workspace" aria-label="Мои документы">
+            <DocumentList
+              documents={filteredDocs}
+              isLoading={isLoading}
+              loadError={documentsLoadError}
+              onRetryLoad={handleRetryDocumentsLoad}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onDelete={handleDelete}
+              pollingErrors={pollingErrors}
+              onRetryPolling={handleRetryPolling}
+              uploadControl={
+                <UploadButton onUpload={handleUpload} disabled={isUploading} />
+              }
+            />
+          </section>
+        )}
 
-          <DocumentList
-            documents={filteredDocs}
-            isLoading={isLoading}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            onDelete={handleDelete}
-            pollingErrors={pollingErrors}
-            onRetryPolling={handleRetryPolling}
+        {activeTab === "chat" && (
+          <Chat
+            isLoadingDocuments={isLoading}
+            documentsLoadError={documentsLoadError}
+            onRetryDocumentsLoad={handleRetryDocumentsLoad}
+            onAsk={handleAskQuestion}
+            hasReadyDocuments={hasReadyDocuments}
+            documents={documents}
+            selectedIds={selectedDocIds}
+            onSelectionChange={setSelectedDocIds}
+            onUpload={handleUpload}
+            isUploading={isUploading}
           />
-        </>
-      )}
-
-      {/* Вкладка Чат */}
-      {activeTab === "chat" && (
-        <Chat
-          onAsk={handleAskQuestion}
-          hasReadyDocuments={hasReadyDocuments}
-          documents={documents}
-          selectedIds={selectedDocIds}
-          onSelectionChange={setSelectedDocIds}
-        />
-      )}
+        )}
+      </main>
     </div>
   );
 }

@@ -69,7 +69,8 @@ export const mockApi = {
     documentsStore = documentsStore.filter((d) => d.id !== id);
   },
 
-  // Имитация POST /chat/ask
+  // Имитация POST /chat/ask. Это UI-заглушка с фиксированным демо-источником,
+  // а не реализация лексического поиска backend из раздела 6.7 контракта.
   async askQuestion(request: AskRequest): Promise<Answer> {
     await delay(1000);
 

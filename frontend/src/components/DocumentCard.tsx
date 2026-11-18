@@ -1,5 +1,5 @@
-// frontend/src/components/DocumentCard.tsx
-import React from "react";
+import { useEffect, useRef, useState } from "react";
+import { Icon } from "./Icon";
 import type { Document } from "../types/api";
 
 interface DocumentCardProps {
@@ -9,109 +9,201 @@ interface DocumentCardProps {
   onRetryPolling: (id: string) => void;
 }
 
+// Все четыре статуса API сохраняются.
+// uploaded пока визуально относится к обработке;
+// отдельное отображение «Загружен» согласуется с архитектором.
 const statusLabels: Record<Document["status"], string> = {
-  uploaded: "Загружен",
-  processing: "Обрабатывается",
+  uploaded: "Обработка",
+  processing: "Обработка",
   ready: "Готов",
   error: "Ошибка",
 };
 
-const statusColors: Record<Document["status"], string> = {
-  uploaded: "#888",
-  processing: "#f0ad4e",
-  ready: "#5cb85c",
-  error: "#d9534f",
+const statusClasses: Record<Document["status"], string> = {
+  uploaded: "document-status--processing",
+  processing: "document-status--processing",
+  ready: "document-status--ready",
+  error: "document-status--error",
 };
 
-export const DocumentCard: React.FC<DocumentCardProps> = ({
+const statusIcons: Record<
+  Document["status"],
+  "loader-2" | "check" | "alert-triangle"
+> = {
+  uploaded: "loader-2",
+  processing: "loader-2",
+  ready: "check",
+  error: "alert-triangle",
+};
+
+// API передаёт размер в байтах; для интерфейса переводим в КБ или МБ.
+function formatSize(bytes: number) {
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.ceil(bytes / 1024))} КБ`;
+  }
+
+  const megabytes = (bytes / (1024 * 1024)).toLocaleString("ru-RU", {
+    maximumFractionDigits: 1,
+  });
+
+  return `${megabytes} МБ`;
+}
+
+export function DocumentCard({
   doc,
   onDelete,
   hasPollingError,
   onRetryPolling,
-}) => {
-  return (
-    <div
-      style={{
-        border: "1px solid #ddd",
-        borderRadius: "8px",
-        padding: "12px",
-        marginBottom: "8px",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}
-    >
-      <div>
-        <div style={{ fontWeight: "bold" }}>📄 {doc.filename}</div>
-        <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>
-          {new Date(doc.created_at).toLocaleDateString("ru-RU")}
-        </div>
+}: DocumentCardProps) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-        {/* Ошибка обработки (от бэкенда) */}
-        {doc.status === "error" && doc.error_message && (
-          <div style={{ fontSize: "12px", color: "#d9534f", marginTop: "4px" }}>
-            {doc.error_message}
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  const createdAt = new Date(doc.created_at);
+  const menuId = `document-actions-${doc.id}`;
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !menuRef.current?.contains(event.target)
+      ) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsMenuOpen(false);
+
+        // После закрытия с клавиатуры возвращаем фокус на три точки.
+        menuButtonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMenuOpen]);
+
+  return (
+    <div className="document-row" role="row">
+      <div className="document-name-cell" role="cell">
+        <span className="document-file-icon" aria-hidden="true">
+          <Icon name="file-description" size={21} />
+        </span>
+
+        <div className="document-name-content">
+          <div className="document-name" title={doc.filename}>
+            {doc.filename}
           </div>
+
+          <div className="document-size">{formatSize(doc.size_bytes)}</div>
+        </div>
+      </div>
+
+      <div className="document-status-cell" role="cell">
+        <span
+          className={`document-status ${statusClasses[doc.status]}`}
+          title={
+            doc.status === "uploaded"
+              ? "Файл принят и ожидает обработки"
+              : undefined
+          }
+        >
+          <Icon
+            name={statusIcons[doc.status]}
+            size={16}
+            className={
+              doc.status === "processing"
+                ? "document-status-icon--spinning"
+                : ""
+            }
+          />
+
+          {statusLabels[doc.status]}
+        </span>
+
+        {/* Ошибка обработки приходит в составе самого документа. */}
+        {doc.status === "error" && doc.error_message && (
+          <p className="document-error">{doc.error_message}</p>
         )}
 
-        {/* Ошибка polling (сеть) */}
+        {/* Сбой опроса не меняет статус документа:
+            показываем его отдельно и разрешаем повторить проверку. */}
         {hasPollingError && (
-          <div style={{ fontSize: "12px", color: "#f0ad4e", marginTop: "4px" }}>
-            Ошибка соединения
+          <div className="document-polling-error" role="status">
+            <span>Не удалось обновить статус.</span>
+
+            <button type="button" onClick={() => onRetryPolling(doc.id)}>
+              Повторить
+            </button>
           </div>
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <div
-          style={{
-            color: statusColors[doc.status],
-            fontWeight: "bold",
-            fontSize: "14px",
-          }}
-        >
-          {statusLabels[doc.status]}
-        </div>
+      <div className="document-date" role="cell">
+        {/* В API время хранится в UTC.
+            Для пользователя отображаем его в часовом поясе браузера. */}
+        <time dateTime={doc.created_at}>
+          {createdAt.toLocaleDateString("ru-RU", {
+            day: "numeric",
+            month: "long",
+          })}
+        </time>
 
-        {/* Кнопка повтора polling */}
-        {hasPollingError && (
+        <span>
+          {createdAt.toLocaleTimeString("ru-RU", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </span>
+      </div>
+
+      <div className="document-actions" role="cell">
+        <div className="document-menu-wrapper" ref={menuRef}>
           <button
-            onClick={() => onRetryPolling(doc.id)}
-            title="Повторить запрос статуса"
-            style={{
-              color: "#f0ad4e",
-              border: "1px solid #f0ad4e",
-              background: "none",
-              borderRadius: "50%",
-              width: "28px",
-              height: "28px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              fontSize: "16px",
-              padding: 0,
-            }}
+            ref={menuButtonRef}
+            type="button"
+            className="document-menu-button"
+            aria-label={`Действия с файлом «${doc.filename}»`}
+            aria-expanded={isMenuOpen}
+            aria-controls={isMenuOpen ? menuId : undefined}
+            onClick={() => setIsMenuOpen((previous) => !previous)}
           >
-            ↻
+            <Icon name="dots-vertical" size={21} />
           </button>
-        )}
 
-        <button
-          onClick={() => onDelete(doc.id)}
-          style={{
-            color: "red",
-            border: "1px solid #d9534f",
-            background: "none",
-            borderRadius: "4px",
-            padding: "4px 8px",
-            cursor: "pointer",
-            fontSize: "12px",
-          }}
-        >
-          Удалить
-        </button>
+          {isMenuOpen && (
+            <div
+              id={menuId}
+              className="document-menu"
+              role="group"
+              aria-label="Действия с документом"
+            >
+              <button
+                type="button"
+                className="document-delete-button"
+                onClick={() => {
+                  // Запрос удаления и обновление списка выполняются в App.
+                  setIsMenuOpen(false);
+                  onDelete(doc.id);
+                }}
+              >
+                <Icon name="trash" size={18} />
+                Удалить
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
-};
+}

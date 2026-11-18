@@ -1,6 +1,8 @@
 // frontend/src/api/index.ts
 import { mockApi } from "../mocks/mockApi";
 import { request } from "./client";
+import { USE_MOCK } from "./config";
+import { isAnswer, isDocument, isDocumentListResponse } from "./validators";
 import type {
   Document,
   AskRequest,
@@ -8,15 +10,15 @@ import type {
   DocumentListResponse,
 } from "../types/api";
 
-// Флаг: используем ли мы mock-режим (пока да, так как бэкенда нет)
-// Когда бэкенд будет готов, поменяй на false или используй переменную окружения
-const USE_MOCK = true;
-
 export const api = {
   // GET /documents
   async getDocuments(): Promise<DocumentListResponse> {
     if (USE_MOCK) return mockApi.getDocuments();
-    return request<DocumentListResponse>("/documents");
+    return request<DocumentListResponse>(
+      "/documents",
+      {},
+      isDocumentListResponse,
+    );
   },
 
   // GET /documents/{id}
@@ -24,7 +26,7 @@ export const api = {
     if (USE_MOCK) {
       return mockApi.getDocumentById(id);
     }
-    return request<Document>(`/documents/${id}`);
+    return request<Document>(`/documents/${id}`, {}, isDocument);
   },
 
   // POST /documents
@@ -34,12 +36,16 @@ export const api = {
     const formData = new FormData();
     formData.append("file", file);
 
-    return request<Document>("/documents", {
-      method: "POST",
-      body: formData,
-      // Не ставим Content-Type, браузер сам выставит multipart/form-data с boundary
-      headers: {},
-    });
+    return request<Document>(
+      "/documents",
+      {
+        method: "POST",
+        body: formData,
+        // Не ставим Content-Type: браузер выставит multipart/form-data с boundary.
+        headers: {},
+      },
+      isDocument,
+    );
   },
 
   // DELETE /documents/{id}
@@ -51,12 +57,14 @@ export const api = {
   // POST /chat/ask
   async askQuestion(req: AskRequest): Promise<Answer> {
     if (USE_MOCK) return mockApi.askQuestion(req);
-    return request<Answer>("/chat/ask", {
-      method: "POST",
-      body: JSON.stringify(req),
-      headers: {
-        "Content-Type": "application/json",
+    return request<Answer>(
+      "/chat/ask",
+      {
+        method: "POST",
+        body: JSON.stringify(req),
+        headers: { "Content-Type": "application/json" },
       },
-    });
+      isAnswer,
+    );
   },
 };
