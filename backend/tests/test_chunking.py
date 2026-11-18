@@ -144,3 +144,12 @@ def test_zero_length_offsets_ignored():
     tokenizer = FakeTokenizer(offsets=[(0, 0), (0, 1), (1, 2)])
 
     assert split_into_chunk_ranges("ab", tokenizer) == [(0, 2)]
+
+
+def test_tokenizer_offsets_with_shared_start():
+    """Accept expanding offsets that share the same start."""
+    tokenizer = FakeTokenizer(offsets=[(0, 1), (0, 2)])
+
+    result = split_into_chunk_ranges("КУ", tokenizer)
+
+    assert result == [(0, 2)]
