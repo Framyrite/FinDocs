@@ -91,18 +91,23 @@ describe("SearchScopeSelector", () => {
     ).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("после снятия последней галочки включает «Все» и позволяет выбрать другой файл", () => {
+  it("после снятия последней галочки сохраняет пустой выбор и позволяет выбрать другой файл", () => {
     const onChange = renderSelector();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "first.txt" }));
 
     fireEvent.click(screen.getByRole("checkbox", { name: "first.txt" }));
 
-    expect(onChange).toHaveBeenLastCalledWith(null);
+    expect(onChange).toHaveBeenLastCalledWith([]);
+    expect(
+      screen.getByRole("button", {
+        name: "Область поиска: Документы не выбраны",
+      }),
+    ).toBeInTheDocument();
 
     expect(
       screen.getByRole("button", { name: "Все готовые документы" }),
-    ).toHaveAttribute("aria-pressed", "true");
+    ).toHaveAttribute("aria-pressed", "false");
 
     expect(
       screen.getByRole("checkbox", { name: "first.txt" }),

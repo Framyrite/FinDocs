@@ -6,7 +6,7 @@ interface SearchScopeSelectorProps {
   documents: Document[];
 
   // null — поиск по всем готовым документам.
-  // Массив — только явно выбранные пользователем документы.
+  // Массив — явный выбор. Пустой массив означает, что ничего не выбрано.
   selectedIds: string[] | null;
 
   onChange: (ids: string[] | null) => void;
@@ -48,7 +48,9 @@ export function SearchScopeSelector({
 
   const selectionLabel = isAllSelected
     ? "Все документы"
-    : `Выбрано файлов: ${selectedReadyIds.length}`;
+    : selectedReadyIds.length === 0
+      ? "Документы не выбраны"
+      : `Выбрано файлов: ${selectedReadyIds.length}`;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -86,9 +88,9 @@ export function SearchScopeSelector({
       ? selectedReadyIds.filter((selectedId) => selectedId !== id)
       : [...selectedReadyIds, id];
 
-    // Снятие последней галочки возвращает режим «Все».
-    // Галочки у остальных файлов при этом не появляются.
-    onChange(nextIds.length > 0 ? nextIds : null);
+    // Не расширяем область поиска при снятии последней галочки.
+    // В режим «Все» пользователь возвращается только отдельной кнопкой.
+    onChange(nextIds);
   };
 
   const toggleDropdown = () => {

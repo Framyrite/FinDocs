@@ -7,8 +7,8 @@ import { UploadButton } from "./UploadButton";
 import { Icon } from "./Icon";
 
 interface ChatProps {
-  onAsk: (question: string, documentIds: string[] | null) => Promise<Answer>;
   isLoadingDocuments?: boolean;
+  onAsk: (question: string, documentIds: string[] | null) => Promise<Answer>;
   hasReadyDocuments: boolean;
   documents: Document[];
   selectedIds: string[] | null;
@@ -46,6 +46,13 @@ export function Chat({
 
   const questionInputRef = useRef<HTMLTextAreaElement>(null);
 
+  // [] — явный пустой выбор, а не режим «Все» (null).
+  // Проверяем его отдельно, чтобы он не мог уйти в API даже при ошибке в props.
+  const isScopeEmpty = selectedIds !== null && selectedIds.length === 0;
+  const canAsk = !isLoadingDocuments && !isScopeEmpty && hasReadyDocuments;
+  const emptyScopeHint =
+    "Выберите хотя бы один документ или включите «Все готовые документы».";
+
   // Поле растёт по содержимому от одной до двух строк. Ввод остаётся
   // у нижнего края карточки, поэтому дополнительная строка занимает место сверху.
   // Повторный расчёт нужен и при открытии источников: меняется ширина чата.
@@ -71,7 +78,7 @@ export function Chat({
   }, [question, isSourcesOpen]);
 
   const sendQuestion = async (request: QuestionRequest) => {
-    if (isWaiting) return;
+    if (isWaiting || !canAsk || request.documentIds?.length === 0) return;
 
     // Новый запрос заменяет предыдущий ответ и закрывает его источники.
     setIsWaiting(true);
@@ -106,7 +113,7 @@ export function Chat({
   const submitQuestion = () => {
     const text = question.trim();
 
-    if (!text || isWaiting || !hasReadyDocuments) return;
+    if (!text || isWaiting || !canAsk) return;
 
     // null означает все готовые документы. Явный список копируем,
     // чтобы запрос и его повтор использовали один и тот же набор ID.
@@ -161,12 +168,14 @@ export function Chat({
               <h2>
                 {isLoadingDocuments
                   ? "Загружаем документы…"
-                  : hasReadyDocuments
-                    ? "Задайте вопрос вашим документам"
-                    : "Начнём с ваших материалов"}
+                  : isScopeEmpty
+                    ? "Выберите документы для поиска"
+                    : hasReadyDocuments
+                      ? "Задайте вопрос вашим документам"
+                      : "Начнём с ваших материалов"}
               </h2>
 
-              {!isLoadingDocuments && (
+              {!isLoadingDocuments && !isScopeEmpty && (
                 <p>
                   {hasReadyDocuments
                     ? "Находите нужное в лекциях и конспектах и проверяйте ответы по источникам."
@@ -191,7 +200,7 @@ export function Chat({
                   <button
                     type="button"
                     className="chat-retry-button"
-                    disabled={isWaiting || !hasReadyDocuments}
+                    disabled={isWaiting || !canAsk}
                     onClick={() => {
                       if (lastRequest) {
                         void sendQuestion(lastRequest);
@@ -245,6 +254,12 @@ export function Chat({
         </div>
 
         <div className="chat-composer-area">
+          {/* Подсказка видна и после ответа, если пользователь очистил выбор. */}
+          {!isLoadingDocuments && isScopeEmpty && (
+            <p className="chat-composer-note" role="status">
+              {emptyScopeHint}
+            </p>
+          )}
           <div className="chat-composer">
             <UploadButton
               iconOnly
@@ -260,11 +275,15 @@ export function Chat({
                 onChange={(event) => setQuestion(event.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={
-                  hasReadyDocuments
-                    ? "Введите свой вопрос..."
-                    : "Сначала загрузите и дождитесь обработки документа"
+                  isLoadingDocuments
+                    ? "Загружаем документы…"
+                    : isScopeEmpty
+                      ? "Выберите документы для поиска"
+                      : hasReadyDocuments
+                        ? "Введите свой вопрос..."
+                        : "Сначала загрузите и дождитесь обработки документа"
                 }
-                disabled={isWaiting || !hasReadyDocuments}
+                disabled={isWaiting || !canAsk}
                 maxLength={2000}
                 rows={1}
               />
@@ -273,7 +292,7 @@ export function Chat({
                 type="submit"
                 className="chat-send-button"
                 aria-label="Отправить"
-                disabled={!question.trim() || isWaiting || !hasReadyDocuments}
+                disabled={!question.trim() || isWaiting || !canAsk}
               >
                 <Icon name="send" size={22} />
               </button>

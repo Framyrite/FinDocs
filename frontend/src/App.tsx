@@ -15,7 +15,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [isUploading, setIsUploading] = useState(false);
-  // null = все документы, массив = выбранные
+  // null = все готовые документы; [] = явный пустой выбор; массив ID = выбранные
   const [selectedDocIds, setSelectedDocIds] = useState<string[] | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("chat"); // По умолчанию открыт чат
 
@@ -108,8 +108,9 @@ function App() {
 
         const remainingIds = previous.filter((documentId) => documentId !== id);
 
-        // После удаления последнего выбранного файла возвращаем режим «Все».
-        return remainingIds.length > 0 ? remainingIds : null;
+        // Удаление последнего выбранного файла оставляет пустую область поиска.
+        // Выбор всех документов возможен только по действию пользователя.
+        return remainingIds;
       });
 
       // Убираем ошибку polling для удаленного документа
@@ -128,6 +129,11 @@ function App() {
     question: string,
     docIds: string[] | null,
   ): Promise<Answer> => {
+    // Пустой выбор допустим в UI, но запрещён контрактом запроса.
+    // Защита остаётся и на границе API, независимо от disabled в форме.
+    if (docIds !== null && docIds.length === 0) {
+      throw new Error("Выберите документы для поиска");
+    }
     return api.askQuestion({ question, document_ids: docIds });
   };
 
