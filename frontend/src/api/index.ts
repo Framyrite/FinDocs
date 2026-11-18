@@ -8,9 +8,10 @@ import type {
   DocumentListResponse,
 } from "../types/api";
 
-// Сейчас запросы направляются в mockAPI; клиентские компоненты используют
-// один интерфейс api. Переключение на сервер выполняется на этапе интеграции.
-const USE_MOCK = true;
+// false — реальные HTTP-запросы через client.ts; true — заглушка frontend.
+// Это НЕ FINDOCS_LLM_PROVIDER: сервер может использовать MockLLM,
+// одновременно предоставляя реальные загрузку, обработку и поиск документов.
+const USE_MOCK = false;
 
 export const api = {
   // GET /documents

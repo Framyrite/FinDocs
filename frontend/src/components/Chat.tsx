@@ -8,6 +8,7 @@ import { Icon } from "./Icon";
 
 interface ChatProps {
   onAsk: (question: string, documentIds: string[] | null) => Promise<Answer>;
+  isLoadingDocuments?: boolean;
   hasReadyDocuments: boolean;
   documents: Document[];
   selectedIds: string[] | null;
@@ -23,6 +24,7 @@ interface QuestionRequest {
 }
 
 export function Chat({
+  isLoadingDocuments = false,
   onAsk,
   hasReadyDocuments,
   documents,
@@ -157,16 +159,20 @@ export function Chat({
           {!sentQuestion ? (
             <div className="chat-welcome">
               <h2>
-                {hasReadyDocuments
-                  ? "Задайте вопрос вашим документам"
-                  : "Начнём с ваших материалов"}
+                {isLoadingDocuments
+                  ? "Загружаем документы…"
+                  : hasReadyDocuments
+                    ? "Задайте вопрос вашим документам"
+                    : "Начнём с ваших материалов"}
               </h2>
 
-              <p>
-                {hasReadyDocuments
-                  ? "Находите нужное в лекциях и конспектах и проверяйте ответы по источникам."
-                  : "Загрузите документ и дождитесь обработки, чтобы начать поиск ответов."}
-              </p>
+              {!isLoadingDocuments && (
+                <p>
+                  {hasReadyDocuments
+                    ? "Находите нужное в лекциях и конспектах и проверяйте ответы по источникам."
+                    : "Загрузите документ и дождитесь обработки, чтобы начать поиск ответов."}
+                </p>
+              )}
             </div>
           ) : (
             <div className="chat-messages">

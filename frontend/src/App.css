@@ -461,15 +461,23 @@
 }
 
 .upload-dialog {
-  width: min(520px, calc(100vw - 48px));
+  width: min(860px, calc(100vw - 96px));
   max-height: calc(100dvh - 48px);
   padding: 0;
+  overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-width: none;
   border: 1px solid var(--fd-border);
   border-radius: 16px;
   background: var(--fd-surface);
   color: var(--fd-text);
   box-shadow: 0 24px 80px rgb(7 49 73 / 18%);
+}
+
+/* Длинное окно прокручивается колесом, тачпадом и с клавиатуры,
+   но полоса прокрутки не отображается. Список файлов отдельно не скроллится. */
+.upload-dialog::-webkit-scrollbar {
+  display: none;
 }
 
 .upload-dialog::backdrop {
@@ -564,11 +572,20 @@
   border-radius: 10px;
 }
 
+/* Название и размер делят первую строку; состояния и ошибки идут ниже.
+   Размер не сжимается, а длинное название сокращается перед ним. */
 .upload-file-details {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 16px;
   min-width: 0;
+}
+
+.upload-file-details > .upload-item-status,
+.upload-file-details > .upload-file-error {
+  grid-column: 1 / -1;
 }
 
 .upload-file-name {
@@ -580,7 +597,8 @@
 
 .upload-file-size {
   color: var(--fd-subtle);
-  font-size: 11px;
+  font-size: inherit;
+  white-space: nowrap;
 }
 
 .upload-error {
@@ -1180,4 +1198,45 @@
   .document-status-icon--spinning {
     animation: none;
   }
+}
+
+/* Очередь загрузки: каждый файл имеет собственный результат запроса.
+   Это состояния отправки, а не статусы серверной TXT-обработки. */
+.upload-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  list-style: none;
+}
+
+.upload-file-list .upload-selected-file {
+  flex-shrink: 0;
+}
+
+.upload-item-status,
+.upload-progress {
+  color: var(--fd-text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.upload-item-status--uploading,
+.upload-item-status--accepted {
+  color: var(--fd-accent);
+}
+
+.upload-item-status--invalid,
+.upload-item-status--failed,
+.upload-file-error {
+  color: var(--fd-status-error);
+}
+
+.upload-file-error {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }

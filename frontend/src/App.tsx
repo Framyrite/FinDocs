@@ -176,6 +176,7 @@ function App() {
 
         {activeTab === "chat" && (
           <Chat
+            isLoadingDocuments={isLoading}
             onAsk={handleAskQuestion}
             hasReadyDocuments={hasReadyDocuments}
             documents={documents}
