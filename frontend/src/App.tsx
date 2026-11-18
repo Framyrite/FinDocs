@@ -14,6 +14,10 @@ import { usePolling } from "./hooks/usePolling";
 function App() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [documentsLoadError, setDocumentsLoadError] = useState<string | null>(
+    null,
+  );
+  const [documentsLoadAttempt, setDocumentsLoadAttempt] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   // null = все готовые документы; [] = явный пустой выбор; массив ID = выбранные
@@ -26,18 +30,36 @@ function App() {
   );
 
   useEffect(() => {
-    // Загружаем документы при старте
+    // Ошибка загрузки — отдельное состояние, а не пустая библиотека.
+    // Повтор запускается счётчиком; старый запрос не обновляет состояние
+    // после cleanup (включая повторный запуск эффекта в StrictMode).
+    let cancelled = false;
     api
       .getDocuments()
       .then((data) => {
+        if (cancelled) return;
         setDocuments(data.items);
+        setDocumentsLoadError(null);
         setIsLoading(false);
       })
       .catch(() => {
-        alert("Не удалось загрузить список документов");
+        if (cancelled) return;
+        setDocumentsLoadError("Проверьте подключение и попробуйте ещё раз.");
         setIsLoading(false);
       });
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentsLoadAttempt]);
+
+  const handleRetryDocumentsLoad = () => {
+    if (isLoading) return;
+    // Во время повтора показываем загрузку и блокируем повторный запрос.
+    setIsLoading(true);
+    setDocumentsLoadError(null);
+    setDocumentsLoadAttempt((previous) => previous + 1);
+  };
 
   // Вычисляем ID документов, которые нужно опрашивать (uploaded или processing)
   const pollingIds = useMemo(() => {
@@ -207,6 +229,8 @@ function App() {
             <DocumentList
               documents={filteredDocs}
               isLoading={isLoading}
+              loadError={documentsLoadError}
+              onRetryLoad={handleRetryDocumentsLoad}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
               onDelete={handleDelete}
@@ -222,6 +246,8 @@ function App() {
         {activeTab === "chat" && (
           <Chat
             isLoadingDocuments={isLoading}
+            documentsLoadError={documentsLoadError}
+            onRetryDocumentsLoad={handleRetryDocumentsLoad}
             onAsk={handleAskQuestion}
             hasReadyDocuments={hasReadyDocuments}
             documents={documents}

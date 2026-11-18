@@ -7,6 +7,8 @@ interface DocumentListProps {
   // Список уже отфильтрован по названию в App.
   documents: Document[];
   isLoading: boolean;
+  loadError?: string | null;
+  onRetryLoad?: () => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onDelete: (id: string) => void;
@@ -20,6 +22,8 @@ interface DocumentListProps {
 export function DocumentList({
   documents,
   isLoading,
+  loadError = null,
+  onRetryLoad,
   searchQuery,
   onSearchChange,
   onDelete,
@@ -50,6 +54,20 @@ export function DocumentList({
       {isLoading ? (
         <div className="documents-empty" role="status">
           <p>Загружаем документы…</p>
+        </div>
+      ) : loadError ? (
+        <div className="documents-empty" role="alert">
+          <h2>Не удалось загрузить список документов</h2>
+          <p>{loadError}</p>
+          {onRetryLoad && (
+            <button
+              type="button"
+              className="upload-cancel-button"
+              onClick={onRetryLoad}
+            >
+              Повторить
+            </button>
+          )}
         </div>
       ) : documents.length === 0 ? (
         <div className="documents-empty">

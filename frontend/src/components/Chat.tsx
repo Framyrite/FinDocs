@@ -8,6 +8,8 @@ import { Icon } from "./Icon";
 
 interface ChatProps {
   isLoadingDocuments?: boolean;
+  documentsLoadError?: string | null;
+  onRetryDocumentsLoad?: () => void;
   onAsk: (question: string, documentIds: string[] | null) => Promise<Answer>;
   hasReadyDocuments: boolean;
   documents: Document[];
@@ -25,6 +27,8 @@ interface QuestionRequest {
 
 export function Chat({
   isLoadingDocuments = false,
+  documentsLoadError = null,
+  onRetryDocumentsLoad,
   onAsk,
   hasReadyDocuments,
   documents,
@@ -49,7 +53,11 @@ export function Chat({
   // [] — явный пустой выбор, а не режим «Все» (null).
   // Проверяем его отдельно, чтобы он не мог уйти в API даже при ошибке в props.
   const isScopeEmpty = selectedIds !== null && selectedIds.length === 0;
-  const canAsk = !isLoadingDocuments && !isScopeEmpty && hasReadyDocuments;
+  const canAsk =
+    !isLoadingDocuments &&
+    !documentsLoadError &&
+    !isScopeEmpty &&
+    hasReadyDocuments;
   const emptyScopeHint =
     "Выберите хотя бы один документ или включите «Все готовые документы».";
 
@@ -151,7 +159,12 @@ export function Chat({
             {chatTitle}
           </h1>
 
-          <fieldset className="chat-scope-controls" disabled={isWaiting}>
+          <fieldset
+            className="chat-scope-controls"
+            disabled={
+              isWaiting || isLoadingDocuments || Boolean(documentsLoadError)
+            }
+          >
             <legend className="visually-hidden">Область поиска</legend>
 
             <SearchScopeSelector
@@ -163,7 +176,21 @@ export function Chat({
         </header>
 
         <div className="chat-thread" tabIndex={0} aria-label="Сообщения чата">
-          {!sentQuestion ? (
+          {documentsLoadError ? (
+            <div className="chat-welcome" role="alert">
+              <h2>Не удалось загрузить список документов</h2>
+              <p>{documentsLoadError}</p>
+              {onRetryDocumentsLoad && (
+                <button
+                  type="button"
+                  className="upload-cancel-button"
+                  onClick={onRetryDocumentsLoad}
+                >
+                  Повторить
+                </button>
+              )}
+            </div>
+          ) : !sentQuestion ? (
             <div className="chat-welcome">
               <h2>
                 {isLoadingDocuments
@@ -255,7 +282,7 @@ export function Chat({
 
         <div className="chat-composer-area">
           {/* Подсказка видна и после ответа, если пользователь очистил выбор. */}
-          {!isLoadingDocuments && isScopeEmpty && (
+          {!isLoadingDocuments && !documentsLoadError && isScopeEmpty && (
             <p className="chat-composer-note" role="status">
               {emptyScopeHint}
             </p>
@@ -277,11 +304,13 @@ export function Chat({
                 placeholder={
                   isLoadingDocuments
                     ? "Загружаем документы…"
-                    : isScopeEmpty
-                      ? "Выберите документы для поиска"
-                      : hasReadyDocuments
-                        ? "Введите свой вопрос..."
-                        : "Сначала загрузите и дождитесь обработки документа"
+                    : documentsLoadError
+                      ? "Не удалось загрузить список документов"
+                      : isScopeEmpty
+                        ? "Выберите документы для поиска"
+                        : hasReadyDocuments
+                          ? "Введите свой вопрос..."
+                          : "Сначала загрузите и дождитесь обработки документа"
                 }
                 disabled={isWaiting || !canAsk}
                 maxLength={2000}
