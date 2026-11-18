@@ -1,17 +1,13 @@
 // frontend/src/api/index.ts
 import { mockApi } from "../mocks/mockApi";
 import { request } from "./client";
+import { USE_MOCK } from "./config";
 import type {
   Document,
   AskRequest,
   Answer,
   DocumentListResponse,
 } from "../types/api";
-
-// false — реальные HTTP-запросы через client.ts; true — заглушка frontend.
-// Это НЕ FINDOCS_LLM_PROVIDER: сервер может использовать MockLLM,
-// одновременно предоставляя реальные загрузку, обработку и поиск документов.
-const USE_MOCK = false;
 
 export const api = {
   // GET /documents

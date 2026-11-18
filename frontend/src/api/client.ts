@@ -1,7 +1,7 @@
 // frontend/src/api/client.ts
 import type { ApiErrorResponse } from "../types/api";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+import { API_BASE_URL } from "./config";
 
 // Сохраняем HTTP-код отдельно от текста, чтобы UI мог различать, например,
 // отсутствие документа (404), отказ сервера и обычную сетевую ошибку fetch.
@@ -23,6 +23,13 @@ export async function request<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
+  // Не отправляем production-запрос на случайный адрес frontend при
+  // отсутствующей конфигурации. В dev config.ts уже подставляет /api.
+  if (!API_BASE_URL) {
+    throw new Error(
+      "Не задан адрес API. Укажите VITE_API_BASE_URL и пересоберите frontend.",
+    );
+  }
   const url = `${API_BASE_URL}${endpoint}`;
 
   // Content-Type задаёт вызывающий метод. Для FormData браузер должен
