@@ -4,7 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { api } from "./api";
-import { ApiRequestError } from "./api/client";
+import {
+  ApiNetworkError,
+  ApiRequestError,
+  ApiResponseError,
+} from "./api/client";
 import type { Document } from "./types/api";
 
 // Проверяем связку App → выбор области → чат → API, а не копию логики выбора.
@@ -254,30 +258,42 @@ describe("Синхронизация при ошибке удаления", () =
   });
 
   it.each([
-    { reason: "HTTP 500", error: new ApiRequestError(500, "Сбой сервера") },
-    { reason: "сетевая ошибка", error: new TypeError("Failed to fetch") },
-  ])("при $reason сохраняет документ и его выбор", async ({ error }) => {
-    const user = await openChat();
-    await user.click(screen.getByRole("checkbox", { name: "first.txt" }));
-    vi.mocked(api.deleteDocument).mockRejectedValueOnce(error);
-    await user.click(
-      screen.getByRole("button", { name: "Мои документы", exact: true }),
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Действия с файлом «first.txt»" }),
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Удалить", exact: true }),
-    );
-    await waitFor(() =>
-      expect(window.alert).toHaveBeenCalledWith("Ошибка удаления"),
-    );
-    expect(screen.getByText("first.txt")).toBeInTheDocument();
-    expect(api.getDocuments).toHaveBeenCalledTimes(1);
-    await user.click(screen.getByRole("button", { name: "Чат", exact: true }));
-    await user.click(screen.getByRole("button", { name: /Область поиска:/ }));
-    expect(screen.getByRole("checkbox", { name: "first.txt" })).toBeChecked();
-  });
+    {
+      reason: "HTTP 500",
+      error: new ApiRequestError(500, "Сбой сервера"),
+      message: "Сервер вернул ошибку (HTTP 500). Попробуйте ещё раз.",
+    },
+    {
+      reason: "сетевая ошибка",
+      error: new ApiNetworkError(new TypeError("Failed to fetch")),
+      message:
+        "Не удалось связаться с сервером. Проверьте подключение и попробуйте ещё раз.",
+    },
+  ])(
+    "при $reason сохраняет документ и его выбор",
+    async ({ error, message }) => {
+      const user = await openChat();
+      await user.click(screen.getByRole("checkbox", { name: "first.txt" }));
+      vi.mocked(api.deleteDocument).mockRejectedValueOnce(error);
+      await user.click(
+        screen.getByRole("button", { name: "Мои документы", exact: true }),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Действия с файлом «first.txt»" }),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Удалить", exact: true }),
+      );
+      await waitFor(() => expect(window.alert).toHaveBeenCalledWith(message));
+      expect(screen.getByText("first.txt")).toBeInTheDocument();
+      expect(api.getDocuments).toHaveBeenCalledTimes(1);
+      await user.click(
+        screen.getByRole("button", { name: "Чат", exact: true }),
+      );
+      await user.click(screen.getByRole("button", { name: /Область поиска:/ }));
+      expect(screen.getByRole("checkbox", { name: "first.txt" })).toBeChecked();
+    },
+  );
 });
 
 describe("Первоначальная загрузка библиотеки", () => {
@@ -428,4 +444,32 @@ describe("Первоначальная загрузка библиотеки", (
     expect(screen.getByRole("textbox", { name: "Ваш вопрос" })).toBeEnabled();
     expect(window.alert).not.toHaveBeenCalled();
   });
+});
+
+describe("Причина ошибки загрузки библиотеки", () => {
+  it.each([
+    {
+      error: new ApiResponseError(200),
+      message: "Сервер вернул некорректный ответ. Попробуйте ещё раз.",
+    },
+    {
+      error: new ApiNetworkError(new TypeError("Failed to fetch")),
+      message:
+        "Не удалось связаться с сервером. Проверьте подключение и попробуйте ещё раз.",
+    },
+  ])(
+    "показывает $message и сохраняет возможность повтора",
+    async ({ error, message }) => {
+      vi.mocked(api.getDocuments).mockRejectedValueOnce(error);
+      render(<App />);
+      expect(await screen.findByRole("alert")).toHaveTextContent(message);
+      expect(
+        screen.getByRole("button", { name: "Повторить", exact: true }),
+      ).toBeEnabled();
+      expect(
+        screen.queryByText("Начнём с ваших материалов"),
+      ).not.toBeInTheDocument();
+      expect(window.alert).not.toHaveBeenCalled();
+    },
+  );
 });

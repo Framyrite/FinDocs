@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import type { Document, Answer } from "./types/api";
 import { api } from "./api";
-import { ApiRequestError } from "./api/client";
+import { ApiRequestError, getApiErrorMessage } from "./api/client";
 import { DocumentList } from "./components/DocumentList";
 import { UploadButton } from "./components/UploadButton";
 import { Chat } from "./components/Chat";
@@ -42,9 +42,14 @@ function App() {
         setDocumentsLoadError(null);
         setIsLoading(false);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (cancelled) return;
-        setDocumentsLoadError("Проверьте подключение и попробуйте ещё раз.");
+        setDocumentsLoadError(
+          getApiErrorMessage(
+            error,
+            "Проверьте подключение и попробуйте ещё раз.",
+          ),
+        );
         setIsLoading(false);
       });
 
@@ -147,7 +152,7 @@ function App() {
       if (!(error instanceof ApiRequestError) || error.status !== 404) {
         // При сети, 403 или 5xx отсутствие документа не подтверждено:
         // не удаляем строку и не меняем выбор пользователя.
-        alert("Ошибка удаления");
+        alert(getApiErrorMessage(error, "Ошибка удаления"));
         return;
       }
 

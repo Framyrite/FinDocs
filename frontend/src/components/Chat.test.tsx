@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { Chat } from "./Chat";
 import type { Answer } from "../types/api";
+import {
+  ApiNetworkError,
+  ApiRequestError,
+  ApiResponseError,
+} from "../api/client";
 
 describe("Chat", () => {
   it("отправляет вопрос и показывает ответ", async () => {
@@ -154,5 +159,54 @@ describe("Chat", () => {
       "Ответ неполный: система нашла информацию только по части вопроса.",
     );
     expect(partialWarning).toBeInTheDocument();
+  });
+});
+
+describe("Причина технической ошибки в чате", () => {
+  it.each([
+    {
+      error: new ApiResponseError(200),
+      message: "Сервер вернул некорректный ответ. Попробуйте ещё раз.",
+    },
+    {
+      error: new ApiNetworkError(new TypeError("Failed to fetch")),
+      message:
+        "Не удалось связаться с сервером. Проверьте подключение и попробуйте ещё раз.",
+    },
+    {
+      error: new ApiRequestError(
+        503,
+        "LLM_UNAVAILABLE: Сервис временно недоступен",
+        "Сервис временно недоступен",
+      ),
+      message: "Сервис временно недоступен",
+    },
+  ])("показывает $message вместо общей ошибки", async ({ error, message }) => {
+    const user = userEvent.setup();
+    const onAsk = vi.fn().mockRejectedValue(error);
+    render(
+      <Chat
+        onAsk={onAsk}
+        hasReadyDocuments
+        documents={[]}
+        selectedIds={null}
+        onSelectionChange={() => {}}
+        onUpload={vi.fn()}
+        isUploading={false}
+      />,
+    );
+    const input = screen.getByRole("textbox", { name: "Ваш вопрос" });
+    await user.type(input, "Вопрос");
+    await user.click(
+      screen.getByRole("button", { name: "Отправить", exact: true }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(
+      screen.getByRole("button", { name: "Повторить запрос" }),
+    ).toBeEnabled();
+    expect(input).toHaveValue("Вопрос");
+    expect(
+      screen.queryByRole("article", { name: "Ответ" }),
+    ).not.toBeInTheDocument();
   });
 });

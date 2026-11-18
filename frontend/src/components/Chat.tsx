@@ -5,6 +5,7 @@ import { SearchScopeSelector } from "./SearchScopeSelector";
 import type { Document, Answer } from "../types/api";
 import { UploadButton } from "./UploadButton";
 import { Icon } from "./Icon";
+import { getApiErrorMessage } from "../api/client";
 
 interface ChatProps {
   isLoadingDocuments?: boolean;
@@ -107,11 +108,14 @@ export function Chat({
       setAnswer(result);
       // Очищаем черновик только после успешного ответа.
       setQuestion("");
-    } catch {
+    } catch (error) {
       // Технический сбой показываем отдельно от ответа insufficient_info.
       // Черновик и снимок запроса остаются для исправления или повтора.
       setError(
-        "Произошла техническая ошибка при получении ответа. Попробуйте еще раз.",
+        getApiErrorMessage(
+          error,
+          "Произошла техническая ошибка при получении ответа. Попробуйте еще раз.",
+        ),
       );
     } finally {
       setIsWaiting(false);
