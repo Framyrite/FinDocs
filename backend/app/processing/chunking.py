@@ -35,8 +35,11 @@ def split_into_chunk_ranges(
         if not 0 <= start < end <= len(text):
             raise TokenizerContractError("Tokenizer returned an invalid character range")
 
-        if offsets and start < offsets[-1][1]:
-            raise TokenizerContractError("Tokenizer offsets are overlapping or out of order")
+        if offsets:
+            previous_start, previous_end = offsets[-1]
+
+            if start < previous_end and not (start == previous_start and end > previous_end):
+                raise TokenizerContractError("Tokenizer offsets are overlapping or out of order")
 
         offsets.append((start, end))
 

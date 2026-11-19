@@ -6,12 +6,14 @@ on:
       - main
     paths:
       - 'frontend/**'
+      - 'scripts/**'
       - '.github/workflows/frontend-tests.yml'
   pull_request:
     branches:
       - main
     paths:
       - 'frontend/**'
+      - 'scripts/**'
       - '.github/workflows/frontend-tests.yml'
 
 jobs:
@@ -36,6 +38,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Audit dependencies (fail on moderate and above)
+        run: npm audit --audit-level=moderate
 
       - name: TypeScript + Build
         run: npm run build
