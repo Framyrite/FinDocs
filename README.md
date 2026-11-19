@@ -82,7 +82,7 @@ npm run build
 npm test -- --run
 ```
 
-Зависимости **не объединены в один файл**: Python — `backend/requirements.txt` и `requirements-dev.txt`; Node.js — `frontend/package.json` и `package-lock.json`. Используйте `npm ci` для воспроизводимой установки. Отчёт `npm audit` разбирается отдельно; не применяйте `npm audit fix` автоматически.
+Зависимости **не объединены в один файл**: Python — `backend/requirements.txt` и `requirements-dev.txt`; Node.js — `frontend/package.json` и `package-lock.json`. Используйте `npm ci` для воспроизводимой установки. Frontend CI запускает `npm audit --audit-level=moderate`. Для устранения GHSA-g3hv-75wg-m249 в dev-зависимостях временно закреплён `overrides.minimatch=11.0.1`; удаляйте override только после проверки исправления в зависимостях верхнего уровня. Не применяйте `npm audit fix` автоматически.
 
 ## Структура и документация
 
