@@ -153,3 +153,15 @@ def test_tokenizer_offsets_with_shared_start():
     result = split_into_chunk_ranges("КУ", tokenizer)
 
     assert result == [(0, 2)]
+
+
+def test_tokenizer_offsets_with_shared_start_at_chunk_boundary():
+    """Preserve overlapping chunk ranges when offsets expand at a window boundary."""
+    text = "К" * (CHUNK_SIZE + 1)
+    offsets = [(index, index + 1) for index in range(len(text))]
+    offsets[CHUNK_STEP] = (CHUNK_STEP - 1, CHUNK_STEP + 1)
+    tokenizer = FakeTokenizer(offsets=offsets)
+
+    result = split_into_chunk_ranges(text, tokenizer)
+
+    assert result == [(0, CHUNK_SIZE), (CHUNK_STEP - 1, len(text))]
