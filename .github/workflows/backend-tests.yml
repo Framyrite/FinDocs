@@ -43,7 +43,9 @@ jobs:
       - name: Check setup scripts syntax
         shell: bash
         run: |
-          bash -n ../scripts/setup.sh ../scripts/check.sh
+          for script in ../scripts/setup.sh ../scripts/check.sh; do
+            bash -n "$script"
+          done
           pwsh -NoProfile -Command '$files = @("../scripts/setup.ps1", "../scripts/check.ps1"); foreach ($file in $files) { $tokens = $null; $errors = $null; [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file).Path, [ref]$tokens, [ref]$errors); if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_ }; exit 1 } }'
 
       - name: Run Ruff Linter
