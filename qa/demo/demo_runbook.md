@@ -3,7 +3,7 @@
 ## 1. Запуск окружения (до выхода на защиту)
 1. Запустить приложение **Ollama** и убедиться, что модель загружена (`ollama list` -> `qwen3.5:4b-q4_K_M`).
 2. **Backend (терминал 1):**
-   `cd backend && source venv/bin/activate && uvicorn app.main:app --host 127.0.0.1 --port 8000`
+   `cd backend && ../.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`
 3. **Frontend (терминал 2):**
    `cd frontend && npm run dev`
 4. Открыть браузер на `http://127.0.0.1:5173` (проверить, что в `backend/.env` стоит `FINDOCS_LLM_PROVIDER=ollama`, в `frontend/.env` — `VITE_USE_MOCK=false`).
