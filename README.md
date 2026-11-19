@@ -61,6 +61,10 @@ npm run dev
 
 ## Проверки
 
+После установки можно запустить все проверки одной командой: `./scripts/check.sh` (macOS/Linux) или `.\scripts\check.ps1` (Windows PowerShell). Она запускает Ruff, pip check, pytest, frontend lint, сборку и Vitest.
+
+Эквивалентные команды вручную:
+
 Backend (из корня, с активной `.venv`):
 
 ```bash

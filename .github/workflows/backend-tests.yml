@@ -8,6 +8,7 @@ on:
       - 'backend/**'
       - '.github/workflows/**'
       - 'tests/**'
+      - 'scripts/**'
   pull_request:
     branches:
       - main
@@ -15,6 +16,7 @@ on:
       - 'backend/**'
       - '.github/workflows/**'
       - 'tests/**'
+      - 'scripts/**'
 
 jobs:
   test:
@@ -37,6 +39,12 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
           python -m pip check
+
+      - name: Check setup scripts syntax
+        shell: bash
+        run: |
+          bash -n ../scripts/setup.sh ../scripts/check.sh
+          pwsh -NoProfile -Command '$files = @("../scripts/setup.ps1", "../scripts/check.ps1"); foreach ($file in $files) { $tokens = $null; $errors = $null; [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file).Path, [ref]$tokens, [ref]$errors); if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_ }; exit 1 } }'
 
       - name: Run Ruff Linter
         run: python -m ruff check . ../tests/
