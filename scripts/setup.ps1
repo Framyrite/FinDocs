@@ -10,7 +10,7 @@ $Token = Join-Path $TokenDir "tokenizer.json"
 $Url = "https://huggingface.co/intfloat/multilingual-e5-small/resolve/ada7b62be30f82b0bc5da131b0477721c8fc14e9/tokenizer.json"
 $Sha = "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39"
 
-foreach ($cmd in @("py","node","npm")) {
+foreach ($cmd in @("py","node","npm.cmd")) {
     if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) { throw "Не найдена команда: $cmd" }
 }
 & node -e 'const [a,b]=process.versions.node.split(".").map(Number);if(a<22||(a===22&&b<12)){console.error("Нужен Node.js 22.12+");process.exit(1)}'
@@ -53,7 +53,7 @@ foreach ($Component in @("backend","frontend")) {
 }
 Push-Location $Frontend
 try {
-    & npm ci
+    & npm.cmd ci
     if ($LASTEXITCODE -ne 0) { throw "npm ci завершился с ошибкой" }
 } finally { Pop-Location }
 Write-Host "Готово. Ollama и веса моделей устанавливаются отдельно."

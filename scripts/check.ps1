@@ -19,11 +19,11 @@ try {
 } finally { Pop-Location }
 Push-Location (Join-Path $Root "frontend")
 try {
-    & npm run lint
+    & npm.cmd run lint
     if ($LASTEXITCODE -ne 0) { throw "npm lint failed" }
-    & npm run build
+    & npm.cmd run build
     if ($LASTEXITCODE -ne 0) { throw "npm build failed" }
-    & npm test -- --run
+    & npm.cmd test -- --run
     if ($LASTEXITCODE -ne 0) { throw "npm tests failed" }
 } finally { Pop-Location }
 Write-Host "Все проверки успешно завершены."
