@@ -12,10 +12,17 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "ruff check failed" }
     & $Python -m ruff format --check . ../tests/
     if ($LASTEXITCODE -ne 0) { throw "ruff format failed" }
-    $env:FINDOCS_LLM_PROVIDER = "mock"
-    $env:PYTHONPATH = ".."
-    & $Python -m pytest tests/ ../tests/ -q
-    if ($LASTEXITCODE -ne 0) { throw "pytest failed" }
+    $PreviousProvider = [Environment]::GetEnvironmentVariable("FINDOCS_LLM_PROVIDER", "Process")
+    $PreviousPythonPath = [Environment]::GetEnvironmentVariable("PYTHONPATH", "Process")
+    try {
+        $env:FINDOCS_LLM_PROVIDER = "mock"
+        $env:PYTHONPATH = ".."
+        & $Python -m pytest tests/ ../tests/ -q
+        if ($LASTEXITCODE -ne 0) { throw "pytest failed" }
+    } finally {
+        [Environment]::SetEnvironmentVariable("FINDOCS_LLM_PROVIDER", $PreviousProvider, "Process")
+        [Environment]::SetEnvironmentVariable("PYTHONPATH", $PreviousPythonPath, "Process")
+    }
 } finally { Pop-Location }
 Push-Location (Join-Path $Root "frontend")
 try {
