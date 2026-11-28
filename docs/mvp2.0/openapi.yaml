@@ -1,0 +1,1945 @@
+openapi: 3.1.0
+info:
+  title: FinDocs API
+  version: 1.0.0-draft.3
+  summary: Контракт API v1 для FinDocs MVP 2.0 (инкременты α, β, γ).
+  description: |
+    Машиночитаемый источник истины для контрактов v1. Человекочитаемые правила
+    (семантика PATCH, курсоры, scope, идемпотентность, переходы состояний, словарь ошибок)
+    — в `docs/mvp2.0/mvp2.0_contracts.md`; при расхождении приоритет у этого файла,
+    а расхождение считается дефектом документации.
+
+    Статус: **proposed**. Изменения после согласования — только через PR с меткой `contract-change`.
+
+    Расширения:
+    - `x-increment` — инкремент, в котором операция становится обязательной (alpha / beta / gamma).
+      CI (`scripts/check_openapi_contract.py`) требует наличия операций только завершённых инкрементов,
+      но сверяет с контрактом каждую уже реализованную операцию (`mvp2.0_contracts.md` §1);
+    - `x-rbac-action` — действие матрицы прав (`security-qa.md` §2);
+    - `x-min-role` — минимальная роль в пространстве (`viewer` < `editor` < `owner`; `chat_owner` — только автор чата);
+    - `x-workspace-states` — состояния пространства, в которых операция разрешена (иначе `409 workspace_archived` / `404`).
+servers:
+  - url: /api
+    description: Тот же origin, что и frontend (Caddy / Vite proxy без rewrite)
+tags:
+  - name: service
+  - name: auth
+  - name: workspaces
+  - name: members
+  - name: invitations
+  - name: folders
+  - name: documents
+  - name: chats
+  - name: sources
+  - name: search
+
+security:
+  - session: []
+
+paths:
+  # ---------------------------------------------------------------- service
+  /health:
+    get:
+      tags: [service]
+      operationId: getHealth
+      summary: Liveness — процесс жив
+      security: []
+      x-increment: alpha
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Health'}
+  /ready:
+    get:
+      tags: [service]
+      operationId: getReady
+      summary: Readiness — БД, миграции, хранилище; LLM только как degraded
+      security: []
+      x-increment: alpha
+      responses:
+        '200':
+          description: Готов (`ok`) или работает с деградацией (`degraded`, недоступна Ollama)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Ready'}
+        '503':
+          description: Не готов (`fail`) — БД, миграции или хранилище
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Ready'}
+
+  # ---------------------------------------------------------------- auth
+  /v1/auth/register:
+    post:
+      tags: [auth]
+      operationId: register
+      summary: Самостоятельная регистрация
+      description: 'Гостевой маршрут, CSRF-защита — строгая проверка Origin. Открыта по умолчанию (FINDOCS_REGISTRATION_MODE=open); режим closed даёт 403 registration_closed. Email не подтверждается (SMTP нет). В ответе один раз возвращается код восстановления — он нужен для сброса пароля через администратора.'
+      security: []
+      x-increment: alpha
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterRequest'}
+      responses:
+        '201':
+          description: Создан пользователь и личное пространство; установлены cookie сессии и CSRF
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/SetSessionCookies'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RegisterResponse'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+        '429': {$ref: '#/components/responses/TooManyRequests'}
+  /v1/auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Вход по email и паролю
+      description: Гостевой маршрут, проверка Origin. Ответ одинаков для «нет пользователя» и «неверный пароль». Старая сессия на этом клиенте отзывается, выпускается новая (защита от fixation).
+      security: []
+      x-increment: alpha
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LoginRequest'}
+      responses:
+        '200':
+          description: Вход выполнен
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/SetSessionCookies'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthResponse'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Validation'}
+        '429': {$ref: '#/components/responses/TooManyRequests'}
+  /v1/auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      x-increment: alpha
+      responses:
+        '204': {description: 'Сессия отозвана, cookie очищены'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /v1/auth/logout-all:
+    post:
+      tags: [auth]
+      operationId: logoutAll
+      x-increment: alpha
+      responses:
+        '204': {description: Все сессии пользователя отозваны}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /v1/auth/me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      x-increment: alpha
+      responses:
+        '200':
+          description: Текущий пользователь; продлевает idle-срок сессии
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthResponse'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+  /v1/auth/sessions:
+    get:
+      tags: [auth]
+      operationId: listSessions
+      x-increment: alpha
+      responses:
+        '200':
+          description: Активные сессии пользователя (не более 50)
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    maxItems: 50
+                    items: {$ref: '#/components/schemas/Session'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+  /v1/auth/sessions/{session_id}:
+    parameters:
+      - {name: session_id, in: path, required: true, schema: {$ref: '#/components/schemas/Uuid'}}
+    delete:
+      tags: [auth]
+      operationId: revokeSession
+      x-increment: alpha
+      responses:
+        '204': {description: Сессия отозвана}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/auth/password/change:
+    post:
+      tags: [auth]
+      operationId: changePassword
+      x-increment: alpha
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PasswordChangeRequest'}
+      responses:
+        '204': {description: Пароль изменён; все другие сессии отозваны}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Validation'}
+        '429': {$ref: '#/components/responses/TooManyRequests'}
+  /v1/auth/recovery-code:
+    post:
+      tags: [auth]
+      operationId: regenerateRecoveryCode
+      summary: Выпустить новый код восстановления (старый перестаёт действовать)
+      x-increment: alpha
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PasswordConfirm'}
+      responses:
+        '200':
+          description: Новый код — показывается один раз
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RecoveryCodeResponse'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '429': {$ref: '#/components/responses/TooManyRequests'}
+  /v1/auth/password/set:
+    post:
+      tags: [auth]
+      operationId: setPasswordWithToken
+      summary: Установка нового пароля по одноразовому токену сброса
+      description: 'Гостевой маршрут, проверка Origin. Токен выдаёт администратор после проверки личности (security-qa.md §3.2); он приходит из фрагмента ссылки /set-password#token=... и передаётся только в теле. Потребление атомарно; все сессии пользователя отзываются; выдаётся новый код восстановления.'
+      security: []
+      x-increment: alpha
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TokenPasswordRequest'}
+      responses:
+        '200':
+          description: Пароль установлен; новый код восстановления — показывается один раз
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RecoveryCodeResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Validation'}
+        '429': {$ref: '#/components/responses/TooManyRequests'}
+  /v1/users/me:
+    patch:
+      tags: [auth]
+      operationId: updateMe
+      x-increment: alpha
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UserPatch'}
+      responses:
+        '200':
+          description: Профиль обновлён
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/User'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Validation'}
+    delete:
+      tags: [auth]
+      operationId: deleteMe
+      x-increment: beta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PasswordConfirm'}
+      responses:
+        '204': {description: 'Аккаунт анонимизирован, личное пространство поставлено на удаление'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  # ---------------------------------------------------------------- workspaces
+  /v1/workspaces:
+    get:
+      tags: [workspaces]
+      operationId: listWorkspaces
+      summary: Пространства пользователя (включая pending_deletion, где он владелец)
+      x-increment: alpha
+      responses:
+        '200':
+          description: Не более 100 пространств; без пагинации
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    maxItems: 100
+                    items: {$ref: '#/components/schemas/Workspace'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+    post:
+      tags: [workspaces]
+      operationId: createWorkspace
+      summary: Создать общее пространство (автор — owner)
+      x-increment: beta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/WorkspaceCreate'}
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Workspace'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /v1/workspaces/{workspace_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [workspaces]
+      operationId: getWorkspace
+      x-rbac-action: workspace.read
+      x-min-role: viewer
+      x-workspace-states: [active, archived]
+      x-increment: alpha
+      description: Владелец получает также пространство в `pending_deletion` (для восстановления); остальные — 404.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Workspace'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    patch:
+      tags: [workspaces]
+      operationId: updateWorkspace
+      x-rbac-action: workspace.rename
+      x-min-role: owner
+      x-workspace-states: [active]
+      x-increment: beta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/WorkspacePatch'}
+      responses:
+        '200':
+          description: Обновлено
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Workspace'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+    delete:
+      tags: [workspaces]
+      operationId: deleteWorkspace
+      summary: Поставить общее пространство на удаление (отсрочка FINDOCS_WORKSPACE_DELETE_DAYS)
+      x-rbac-action: workspace.delete
+      x-min-role: owner
+      x-workspace-states: [active, archived]
+      x-increment: beta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/WorkspaceDeleteConfirm'}
+      responses:
+        '202':
+          description: Пространство в состоянии pending_deletion
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Workspace'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /v1/workspaces/{workspace_id}/archive:
+    parameters: [{$ref: '#/components/parameters/WorkspaceId'}]
+    post:
+      tags: [workspaces]
+      operationId: archiveWorkspace
+      x-rbac-action: workspace.archive
+      x-min-role: owner
+      x-workspace-states: [active]
+      x-increment: beta
+      requestBody: {$ref: '#/components/requestBodies/VersionOnly'}
+      responses:
+        '200': {$ref: '#/components/responses/WorkspaceOk'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /v1/workspaces/{workspace_id}/unarchive:
+    parameters: [{$ref: '#/components/parameters/WorkspaceId'}]
+    post:
+      tags: [workspaces]
+      operationId: unarchiveWorkspace
+      x-rbac-action: workspace.archive
+      x-min-role: owner
+      x-workspace-states: [archived]
+      x-increment: beta
+      requestBody: {$ref: '#/components/requestBodies/VersionOnly'}
+      responses:
+        '200': {$ref: '#/components/responses/WorkspaceOk'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /v1/workspaces/{workspace_id}/restore:
+    parameters: [{$ref: '#/components/parameters/WorkspaceId'}]
+    post:
+      tags: [workspaces]
+      operationId: restoreWorkspace
+      summary: Отменить удаление до delete_after
+      x-rbac-action: workspace.restore
+      x-min-role: owner
+      x-workspace-states: [pending_deletion]
+      x-increment: beta
+      requestBody: {$ref: '#/components/requestBodies/VersionOnly'}
+      responses:
+        '200': {$ref: '#/components/responses/WorkspaceOk'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /v1/workspaces/{workspace_id}/transfer-ownership:
+    parameters: [{$ref: '#/components/parameters/WorkspaceId'}]
+    post:
+      tags: [workspaces]
+      operationId: transferOwnership
+      x-rbac-action: workspace.transfer
+      x-min-role: owner
+      x-workspace-states: [active, archived]
+      x-increment: beta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TransferOwnershipRequest'}
+      responses:
+        '200': {$ref: '#/components/responses/WorkspaceOk'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  # ---------------------------------------------------------------- members
+  /v1/workspaces/{workspace_id}/members:
+    parameters: [{$ref: '#/components/parameters/WorkspaceId'}]
+    get:
+      tags: [members]
+      operationId: listMembers
+      x-rbac-action: member.list
+      x-min-role: viewer
+      x-workspace-states: [active, archived]
+      x-increment: beta
+      responses:
+        '200':
+          description: Не более 200 участников; без пагинации; сортировка role (owner, editor, viewer), затем display_name, user.id
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    maxItems: 200
+                    items: {$ref: '#/components/schemas/Member'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/workspaces/{workspace_id}/members/{user_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - {name: user_id, in: path, required: true, schema: {$ref: '#/components/schemas/Uuid'}}
+    patch:
+      tags: [members]
+      operationId: changeMemberRole
+      x-rbac-action: member.change_role
+      x-min-role: owner
+      x-workspace-states: [active, archived]
+      x-increment: beta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MemberPatch'}
+      responses:
+        '200':
+          description: Роль изменена
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Member'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+    delete:
+      tags: [members]
+      operationId: removeMember
+      description: Исключение участника владельцем. Приватные чаты исключённого в этом пространстве удаляются в той же транзакции.
+      x-rbac-action: member.remove
+      x-min-role: owner
+      x-workspace-states: [active, archived]
+      x-increment: beta
+      responses:
+        '204': {description: Исключён}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /v1/workspaces/{workspace_id}/leave:
+    parameters: [{$ref: '#/components/parameters/WorkspaceId'}]
+    post:
+      tags: [members]
+      operationId: leaveWorkspace
+      x-rbac-action: member.leave
+      x-min-role: viewer
+      x-workspace-states: [active, archived]
+      x-increment: beta
+      responses:
+        '204': {description: Пользователь вышел; его чаты в пространстве удалены}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  # ---------------------------------------------------------------- invitations
+  /v1/workspaces/{workspace_id}/invitations:
+    parameters: [{$ref: '#/components/parameters/WorkspaceId'}]
+    get:
+      tags: [invitations]
+      operationId: listInvitations
+      x-rbac-action: invitation.manage
+      x-min-role: owner
+      x-workspace-states: [active]
+      x-increment: beta
+      responses:
+        '200':
+          description: Активные приглашения (не более 50), без токенов
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    maxItems: 50
+                    items: {$ref: '#/components/schemas/Invitation'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    post:
+      tags: [invitations]
+      operationId: createInvitation
+      x-rbac-action: invitation.manage
+      x-min-role: owner
+      x-workspace-states: [active]
+      x-increment: beta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/InvitationCreate'}
+      responses:
+        '201':
+          description: Создано; ссылка с токеном возвращается ОДИН раз
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InvitationCreated'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /v1/workspaces/{workspace_id}/invitations/{invitation_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - {name: invitation_id, in: path, required: true, schema: {$ref: '#/components/schemas/Uuid'}}
+    delete:
+      tags: [invitations]
+      operationId: revokeInvitation
+      x-rbac-action: invitation.manage
+      x-min-role: owner
+      x-workspace-states: [active, archived]
+      x-increment: beta
+      responses:
+        '204': {description: Отозвано}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/invitations/lookup:
+    post:
+      tags: [invitations]
+      operationId: lookupInvitation
+      summary: Предпросмотр приглашения по токену (требуется вход)
+      description: Токен из фрагмента ссылки `/invite#token=...` передаётся в теле. Недействительный, истёкший, отозванный и использованный токен — одинаковый 404.
+      x-increment: beta
+      requestBody: {$ref: '#/components/requestBodies/InvitationToken'}
+      responses:
+        '200':
+          description: Приглашение действительно
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InvitationPreview'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/TooManyRequests'}
+  /v1/invitations/accept:
+    post:
+      tags: [invitations]
+      operationId: acceptInvitation
+      x-increment: beta
+      requestBody: {$ref: '#/components/requestBodies/InvitationToken'}
+      responses:
+        '200':
+          description: Пользователь стал участником с ролью из приглашения
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Workspace'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/TooManyRequests'}
+
+  # ---------------------------------------------------------------- folders
+  /v1/workspaces/{workspace_id}/folders:
+    parameters: [{$ref: '#/components/parameters/WorkspaceId'}]
+    get:
+      tags: [folders]
+      operationId: listFolders
+      x-rbac-action: folder.read
+      x-min-role: viewer
+      x-workspace-states: [active, archived]
+      x-increment: beta
+      responses:
+        '200':
+          description: Плоский список (дерево строит клиент), не более 1000; сортировка depth, lower(name), id
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    maxItems: 1000
+                    items: {$ref: '#/components/schemas/Folder'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    post:
+      tags: [folders]
+      operationId: createFolder
+      x-rbac-action: folder.write
+      x-min-role: editor
+      x-workspace-states: [active]
+      x-increment: beta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/FolderCreate'}
+      responses:
+        '201':
+          description: Создана
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Folder'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /v1/workspaces/{workspace_id}/folders/{folder_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/FolderId'
+    patch:
+      tags: [folders]
+      operationId: updateFolder
+      description: Переименование и/или перемещение. `parent_id` отсутствует — не меняется; `null` — в корень.
+      x-rbac-action: folder.write
+      x-min-role: editor
+      x-workspace-states: [active]
+      x-increment: beta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/FolderPatch'}
+      responses:
+        '200':
+          description: Обновлена
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Folder'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+    delete:
+      tags: [folders]
+      operationId: deleteFolder
+      description: Только пустая папка (без подпапок и неудалённых документов).
+      x-rbac-action: folder.write
+      x-min-role: editor
+      x-workspace-states: [active]
+      x-increment: beta
+      responses:
+        '204': {description: Удалена}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  # ---------------------------------------------------------------- documents
+  /v1/workspaces/{workspace_id}/documents:
+    parameters: [{$ref: '#/components/parameters/WorkspaceId'}]
+    get:
+      tags: [documents]
+      operationId: listDocuments
+      x-rbac-action: document.read
+      x-min-role: viewer
+      x-workspace-states: [active, archived]
+      x-increment: alpha
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - {name: q, in: query, schema: {type: string, minLength: 1, maxLength: 100}, description: Подстрока имени файла без учёта регистра}
+        - {name: status, in: query, schema: {$ref: '#/components/schemas/DocumentStatus'}}
+        - {name: format, in: query, schema: {$ref: '#/components/schemas/DocumentFormat'}}
+        - name: folder_id
+          in: query
+          description: UUID папки (без подпапок) или `root` — документы без папки
+          schema:
+            oneOf:
+              - {$ref: '#/components/schemas/Uuid'}
+              - {type: string, const: root}
+        - {name: created_from, in: query, schema: {$ref: '#/components/schemas/Timestamp'}}
+        - {name: created_to, in: query, schema: {$ref: '#/components/schemas/Timestamp'}}
+        - {name: sort, in: query, schema: {type: string, enum: [created_at, filename, size_bytes], default: created_at}}
+        - {name: order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
+      responses:
+        '200':
+          description: Страница документов; порядок (sort, id) стабилен
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DocumentPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/Validation'}
+    post:
+      tags: [documents]
+      operationId: uploadDocument
+      summary: Загрузить TXT / PDF / DOCX
+      description: Синхронно проверяются размер (потоково), расширение, сигнатура PDF/DOCX, квоты и свободное место. Остальные проверки — при обработке, результат в `status`/`error_code`.
+      x-rbac-action: document.write
+      x-min-role: editor
+      x-workspace-states: [active]
+      x-increment: alpha
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, contentMediaType: application/octet-stream}
+                folder_id: {$ref: '#/components/schemas/Uuid'}
+            encoding:
+              file: {contentType: 'text/plain, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/octet-stream'}
+      responses:
+        '202':
+          description: Принят; обработка в фоне
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Document'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMedia'}
+        '422': {$ref: '#/components/responses/Validation'}
+        '429': {$ref: '#/components/responses/TooManyRequests'}
+        '507': {$ref: '#/components/responses/InsufficientStorage'}
+  /v1/workspaces/{workspace_id}/documents/{document_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [documents]
+      operationId: getDocument
+      x-rbac-action: document.read
+      x-min-role: viewer
+      x-workspace-states: [active, archived]
+      x-increment: alpha
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Document'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    patch:
+      tags: [documents]
+      operationId: updateDocument
+      description: Переименование и/или перенос в папку того же пространства. `folder_id`=null — в корень.
+      x-rbac-action: document.write
+      x-min-role: editor
+      x-workspace-states: [active]
+      x-increment: beta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DocumentPatch'}
+      responses:
+        '200':
+          description: Обновлён
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Document'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+    delete:
+      tags: [documents]
+      operationId: deleteDocument
+      description: 'Editor удаляет только документы, загруженные им самим (uploaded_by); owner — любые. Иначе 403 forbidden, details.reason=not_uploader. Документ мгновенно исчезает из списков, поиска, scope, скачивания; ответы, при генерации которых он использовался, скрываются целиком. Физическая очистка — фоном.'
+      x-rbac-action: document.delete
+      x-min-role: editor
+      x-ownership: uploaded_by_or_owner
+      x-workspace-states: [active]
+      x-increment: alpha
+      responses:
+        '204': {description: Удалён}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /v1/workspaces/{workspace_id}/documents/{document_id}/reprocess:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/DocumentId'
+    post:
+      tags: [documents]
+      operationId: reprocessDocument
+      description: Для `ready` документ остаётся доступным по старой версии до успешного завершения; для `error` — повтор первичной обработки.
+      x-rbac-action: document.write
+      x-min-role: editor
+      x-workspace-states: [active]
+      x-increment: beta
+      responses:
+        '202':
+          description: Поставлено в очередь
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Document'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /v1/workspaces/{workspace_id}/documents/{document_id}/original:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [documents]
+      operationId: downloadOriginal
+      description: Поддерживает заголовок Range (206) — им пользуется просмотрщик PDF во frontend для постраничной загрузки.
+      x-rbac-action: document.read
+      x-min-role: viewer
+      x-workspace-states: [active, archived]
+      x-increment: alpha
+      responses:
+        '200':
+          description: Поток оригинала; Content-Disposition attachment; X-Content-Type-Options nosniff; Cache-Control private, no-store
+          headers:
+            Content-Disposition:
+              schema: {type: string}
+              example: "attachment; filename=\"document.pdf\"; filename*=UTF-8''%D0%9E%D1%82%D1%87%D1%91%D1%82.pdf"
+          content:
+            application/octet-stream:
+              schema: {type: string, contentMediaType: application/octet-stream}
+        '206':
+          description: Частичное содержимое по Range
+          content:
+            application/octet-stream:
+              schema: {type: string, contentMediaType: application/octet-stream}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '416': {$ref: '#/components/responses/BadRequest'}
+
+  /v1/workspaces/{workspace_id}/documents/{document_id}/preview:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [documents]
+      operationId: getDocumentPreview
+      summary: Сведения для предпросмотра документа (режим, страницы, оглавление)
+      description: 'Без run_id — активная версия обработки. С run_id — версия, по которой был дан ответ (источник reprocessed); superseded run доступен 30 дней, затем 404 preview_run_expired.'
+      x-rbac-action: document.read
+      x-min-role: viewer
+      x-workspace-states: [active, archived]
+      x-increment: beta
+      parameters:
+        - {name: run_id, in: query, schema: {$ref: '#/components/schemas/Uuid'}}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PreviewInfo'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /v1/workspaces/{workspace_id}/documents/{document_id}/preview/blocks:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [documents]
+      operationId: listPreviewBlocks
+      summary: Извлечённый текст документа по блокам с якорями (текстовый режим и навигация)
+      description: 'Источник истины для перехода к абзацу/разделу DOCX, к странице и подсветки цитаты: координаты блоков совпадают с координатами Source.start_char/end_char того же run. page — только для PDF; around_block — открыть окно вокруг блока источника.'
+      x-rbac-action: document.read
+      x-min-role: viewer
+      x-workspace-states: [active, archived]
+      x-increment: beta
+      parameters:
+        - {name: run_id, in: query, schema: {$ref: '#/components/schemas/Uuid'}}
+        - {name: page, in: query, schema: {type: integer, minimum: 1}}
+        - {name: around_block, in: query, schema: {$ref: '#/components/schemas/Uuid'}}
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Блоки в порядке документа
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PreviewBlockPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  # ---------------------------------------------------------------- chats
+  /v1/workspaces/{workspace_id}/chats:
+    parameters: [{$ref: '#/components/parameters/WorkspaceId'}]
+    get:
+      tags: [chats]
+      operationId: listChats
+      x-rbac-action: chat.own
+      x-min-role: viewer
+      x-workspace-states: [active, archived]
+      x-increment: alpha
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - {name: status, in: query, schema: {type: string, enum: [active, archived], default: active}}
+        - {name: q, in: query, schema: {type: string, minLength: 1, maxLength: 100}, description: Подстрока заголовка}
+      responses:
+        '200':
+          description: Свои чаты; порядок COALESCE(last_message_at, created_at) DESC, id DESC
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    post:
+      tags: [chats]
+      operationId: createChat
+      x-rbac-action: chat.own
+      x-min-role: viewer
+      x-workspace-states: [active]
+      x-increment: alpha
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChatCreate'}
+      responses:
+        '201':
+          description: Создан
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Chat'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /v1/workspaces/{workspace_id}/chats/{chat_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ChatId'
+    get:
+      tags: [chats]
+      operationId: getChat
+      x-rbac-action: chat.own
+      x-min-role: chat_owner
+      x-workspace-states: [active, archived]
+      x-increment: alpha
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Chat'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    patch:
+      tags: [chats]
+      operationId: updateChat
+      x-rbac-action: chat.own
+      x-min-role: chat_owner
+      x-workspace-states: [active]
+      x-increment: alpha
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChatPatch'}
+      responses:
+        '200':
+          description: Обновлён
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Chat'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+    delete:
+      tags: [chats]
+      operationId: deleteChat
+      x-rbac-action: chat.own
+      x-min-role: chat_owner
+      x-workspace-states: [active, archived]
+      x-increment: alpha
+      responses:
+        '204': {description: Удалён вместе с сообщениями и источниками}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/workspaces/{workspace_id}/chats/{chat_id}/messages:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ChatId'
+    get:
+      tags: [chats]
+      operationId: listMessages
+      description: Страница — самые новые сообщения до курсора; внутри страницы порядок по seq возрастанию. Доступ к документам и удаление проверяются при каждом чтении (ответы и цитаты удалённых документов скрыты).
+      x-rbac-action: chat.own
+      x-min-role: chat_owner
+      x-workspace-states: [active, archived]
+      x-increment: alpha
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MessagePage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    post:
+      tags: [chats]
+      operationId: askQuestion
+      summary: Задать вопрос (идемпотентно по client_message_id)
+      x-rbac-action: chat.ask
+      x-min-role: chat_owner
+      x-workspace-states: [active]
+      x-increment: alpha
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MessageCreate'}
+      responses:
+        '201':
+          description: Новая генерация завершена (completed)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MessageExchange'}
+        '200':
+          description: Повтор того же запроса — сохранённый результат без новой генерации
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MessageExchange'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+        '429': {$ref: '#/components/responses/TooManyRequests'}
+        '503': {$ref: '#/components/responses/GenerationFailed'}
+        '504': {$ref: '#/components/responses/GenerationFailed'}
+
+  # ---------------------------------------------------------------- sources
+  /v1/workspaces/{workspace_id}/chats/{chat_id}/messages/{message_id}/sources/{source_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/ChatId'
+      - {name: message_id, in: path, required: true, schema: {$ref: '#/components/schemas/Uuid'}}
+      - {name: source_id, in: path, required: true, schema: {$ref: '#/components/schemas/Uuid'}}
+    get:
+      tags: [sources]
+      operationId: getSource
+      description: 'Цитата и контекст из того run, по которому был дан ответ (не из текущего). Доступ и скрытие ответа перепроверяются при каждом открытии. Если ответ скрыт (удалён хотя бы один документ его контекста), ВСЕ его источники отдают 410 source_unavailable — в том числе источники из неудалённых документов.'
+      x-rbac-action: chat.own
+      x-min-role: chat_owner
+      x-workspace-states: [active, archived]
+      x-increment: alpha
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SourceDetail'}
+        '410': {$ref: '#/components/responses/Gone'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  # ---------------------------------------------------------------- search
+  /v1/workspaces/{workspace_id}/search:
+    parameters: [{$ref: '#/components/parameters/WorkspaceId'}]
+    post:
+      tags: [search]
+      operationId: searchDiagnostics
+      summary: Диагностический поиск без генерации (только при FINDOCS_SEARCH_DIAGNOSTICS=true; не на demo)
+      x-rbac-action: search.diagnostics
+      x-min-role: editor
+      x-workspace-states: [active, archived]
+      x-increment: gamma
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SearchRequest'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SearchResult'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+
+# ==================================================================== components
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: __Host-findocs_session
+      description: |
+        Непрозрачный токен сессии (HttpOnly, Secure, SameSite=Lax, Path=/). Для изменяющих методов
+        дополнительно обязательны заголовок `X-CSRF-Token` (равен cookie `findocs_csrf`) и `Origin`
+        из списка FINDOCS_ALLOWED_ORIGINS. Гостевые POST проверяют только `Origin`.
+
+  headers:
+    SetSessionCookies:
+      description: '`__Host-findocs_session` (HttpOnly) и `findocs_csrf` (читается JS)'
+      schema: {type: string}
+
+  parameters:
+    WorkspaceId: {name: workspace_id, in: path, required: true, schema: {$ref: '#/components/schemas/Uuid'}}
+    FolderId:    {name: folder_id, in: path, required: true, schema: {$ref: '#/components/schemas/Uuid'}}
+    DocumentId:  {name: document_id, in: path, required: true, schema: {$ref: '#/components/schemas/Uuid'}}
+    ChatId:      {name: chat_id, in: path, required: true, schema: {$ref: '#/components/schemas/Uuid'}}
+    Limit:       {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 50}}
+    Cursor:
+      name: cursor
+      in: query
+      description: Непрозрачный курсор из `next_cursor`. Подписан сервером и привязан к маршруту, пространству, фильтрам и сортировке; чужой/изменённый — `400 invalid_cursor`.
+      schema: {type: string, minLength: 1, maxLength: 512, pattern: '^[A-Za-z0-9_-]+$'}
+
+  requestBodies:
+    VersionOnly:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [version]
+            properties:
+              version: {$ref: '#/components/schemas/Version'}
+    InvitationToken:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [token]
+            properties:
+              token: {$ref: '#/components/schemas/OpaqueToken'}
+
+  responses:
+    WorkspaceOk:
+      description: OK
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Workspace'}
+    BadRequest:
+      description: '`invalid_cursor`, `invalid_or_expired_token`'
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Gone:
+      description: '`source_unavailable` — источник принадлежит скрытому ответу; содержимое не раскрывается'
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Unauthenticated:
+      description: '`unauthenticated`, `session_expired`, `invalid_credentials`'
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Forbidden:
+      description: '`forbidden` (details.required_role), `csrf_failed`, `origin_not_allowed`, `registration_closed`'
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    NotFound:
+      description: Ресурс не существует ИЛИ недоступен пользователю — ответы неразличимы (`<resource>_not_found`)
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Conflict:
+      description: 'См. словарь ошибок: version_conflict, workspace_archived, folder_not_empty, chat_busy, message_in_progress, document_not_ready, no_ready_documents ...'
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Validation:
+      description: '`validation_error` (details.fields), `scope_required`, `scope_empty`, `scope_invalid`, `idempotency_mismatch`, `weak_password`, `question_too_long`'
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    TooManyRequests:
+      description: '`too_many_requests`; заголовок Retry-After (секунды)'
+      headers:
+        Retry-After: {schema: {type: integer, minimum: 1}}
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    PayloadTooLarge:
+      description: '`file_too_large` (details.max_size_mb) или `payload_too_large` от proxy — тот же конверт'
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    UnsupportedMedia:
+      description: '`unsupported_format`, `format_mismatch`'
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    InsufficientStorage:
+      description: '`insufficient_storage` — на сервере мало свободного места'
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    GenerationFailed:
+      description: '`llm_unavailable` (503) / `llm_timeout` (504). Вопрос и ответ со статусом failed сохранены; повтор — тем же client_message_id. details.assistant_message_id'
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+
+  schemas:
+    # ---------- общие
+    Uuid: {type: string, format: uuid, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}
+    Timestamp: {type: string, format: date-time, description: 'ISO 8601 UTC с суффиксом Z, точность до миллисекунд', examples: ['2026-12-01T09:00:00.000Z']}
+    Version: {type: integer, minimum: 1, description: Версия для оптимистической блокировки}
+    OpaqueToken: {type: string, minLength: 43, maxLength: 64, pattern: '^[A-Za-z0-9_-]+$', description: base64url от 256 случайных бит}
+    NextCursor: {type: [string, 'null'], maxLength: 512}
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message, request_id]
+          properties:
+            code: {type: string, pattern: '^[a-z][a-z0-9_]*$', description: Машиночитаемый код из словаря ошибок}
+            message: {type: string, description: Сообщение для пользователя на русском}
+            details: {type: object, description: Структура зависит от code (словарь ошибок)}
+            request_id: {type: string, maxLength: 64}
+      examples:
+        - error: {code: scope_invalid, message: Некоторые документы недоступны или не существуют., details: {invalid_document_ids: ['0f8b2c2e-3f4e-4d6a-9b1c-2a3b4c5d6e7f']}, request_id: 01JDXQ4N7Z8K9M2P3Q4R5S6T7U}
+
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {const: ok}
+    Ready:
+      type: object
+      additionalProperties: false
+      required: [status, checks]
+      properties:
+        status: {type: string, enum: [ok, degraded, fail]}
+        checks:
+          type: object
+          additionalProperties: false
+          required: [db, migrations, storage, llm]
+          properties:
+            db: {type: string, enum: [ok, fail]}
+            migrations: {type: string, enum: [ok, fail]}
+            storage: {type: string, enum: [ok, fail]}
+            llm: {type: string, enum: [ok, degraded]}
+
+    # ---------- auth
+    Email: {type: string, format: email, maxLength: 254}
+    Password: {type: string, minLength: 15, maxLength: 128, description: 'Политика: 15–128 символов, без требований к составу, проверка по списку скомпрометированных и ожидаемых паролей'}
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [email, display_name, password]
+      properties:
+        email: {$ref: '#/components/schemas/Email'}
+        display_name: {type: string, minLength: 1, maxLength: 100}
+        password: {$ref: '#/components/schemas/Password'}
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: {$ref: '#/components/schemas/Email'}
+        password: {type: string, minLength: 1, maxLength: 128}
+    PasswordChangeRequest:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password: {type: string, minLength: 1, maxLength: 128}
+        new_password: {$ref: '#/components/schemas/Password'}
+    TokenPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [token, new_password]
+      properties:
+        token: {$ref: '#/components/schemas/OpaqueToken'}
+        new_password: {$ref: '#/components/schemas/Password'}
+    PasswordConfirm:
+      type: object
+      additionalProperties: false
+      required: [password]
+      properties:
+        password: {type: string, minLength: 1, maxLength: 128}
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, email, display_name, created_at]
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        email: {$ref: '#/components/schemas/Email'}
+        display_name: {type: string}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+    UserPatch:
+      type: object
+      additionalProperties: false
+      required: [display_name]
+      properties:
+        display_name: {type: string, minLength: 1, maxLength: 100}
+    UserRef:
+      type: object
+      additionalProperties: false
+      required: [id, display_name, deleted]
+      description: 'Ссылка на пользователя в ресурсах. После удаления аккаунта ссылка сохраняется на обезличенную запись: display_name «Удалённый пользователь», deleted=true.'
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        display_name: {type: string}
+        deleted: {type: boolean}
+    RegisterResponse:
+      allOf:
+        - $ref: '#/components/schemas/AuthResponse'
+        - type: object
+          required: [recovery_code]
+          properties:
+            recovery_code: {$ref: '#/components/schemas/RecoveryCode'}
+    RecoveryCode:
+      type: string
+      pattern: '^[A-Z2-9]{4}(-[A-Z2-9]{4}){4}$'
+      description: '20 символов из алфавита без похожих знаков, группами по 4 (≈100 бит). Показывается один раз, хранится только SHA-256.'
+      examples: ['K7QM-2XRT-9WHE-4NPA-C8VD']
+    RecoveryCodeResponse:
+      type: object
+      additionalProperties: false
+      required: [recovery_code]
+      properties:
+        recovery_code: {$ref: '#/components/schemas/RecoveryCode'}
+    AuthResponse:
+      type: object
+      additionalProperties: false
+      required: [user, personal_workspace_id, session_expires_at, csrf_token]
+      properties:
+        user: {$ref: '#/components/schemas/User'}
+        personal_workspace_id: {$ref: '#/components/schemas/Uuid'}
+        session_expires_at: {$ref: '#/components/schemas/Timestamp'}
+        csrf_token: {type: string, description: 'То же значение, что в cookie findocs_csrf'}
+    Session:
+      type: object
+      additionalProperties: false
+      required: [id, current, created_at, last_seen_at, expires_at, user_agent]
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        current: {type: boolean}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        last_seen_at: {$ref: '#/components/schemas/Timestamp'}
+        expires_at: {$ref: '#/components/schemas/Timestamp'}
+        user_agent: {type: [string, 'null'], maxLength: 256}
+
+    # ---------- workspaces
+    WorkspaceStatus: {type: string, enum: [active, archived, pending_deletion]}
+    Role: {type: string, enum: [owner, editor, viewer]}
+    Workspace:
+      type: object
+      additionalProperties: false
+      required: [id, name, kind, status, my_role, member_count, usage, created_at, updated_at, archived_at, delete_after, version]
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        name: {type: string, minLength: 1, maxLength: 100}
+        kind: {type: string, enum: [personal, shared]}
+        status: {$ref: '#/components/schemas/WorkspaceStatus'}
+        my_role: {$ref: '#/components/schemas/Role'}
+        member_count: {type: integer, minimum: 1}
+        usage:
+          type: object
+          additionalProperties: false
+          required: [document_count, document_limit, storage_bytes, storage_limit_bytes]
+          properties:
+            document_count: {type: integer, minimum: 0}
+            document_limit: {type: integer, minimum: 1}
+            storage_bytes: {type: integer, minimum: 0}
+            storage_limit_bytes: {type: integer, minimum: 1}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+        archived_at: {oneOf: [{$ref: '#/components/schemas/Timestamp'}, {type: 'null'}]}
+        delete_after: {oneOf: [{$ref: '#/components/schemas/Timestamp'}, {type: 'null'}]}
+        version: {$ref: '#/components/schemas/Version'}
+    WorkspaceCreate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+    WorkspacePatch:
+      type: object
+      additionalProperties: false
+      required: [version, name]
+      properties:
+        version: {$ref: '#/components/schemas/Version'}
+        name: {type: string, minLength: 1, maxLength: 100}
+    WorkspaceDeleteConfirm:
+      type: object
+      additionalProperties: false
+      required: [version, confirm_name]
+      properties:
+        version: {$ref: '#/components/schemas/Version'}
+        confirm_name: {type: string, description: Должно совпасть с name пространства}
+    TransferOwnershipRequest:
+      type: object
+      additionalProperties: false
+      required: [version, new_owner_id, password]
+      properties:
+        version: {$ref: '#/components/schemas/Version'}
+        new_owner_id: {$ref: '#/components/schemas/Uuid'}
+        password: {type: string, minLength: 1, maxLength: 128}
+    Member:
+      type: object
+      additionalProperties: false
+      required: [user, email, role, joined_at]
+      properties:
+        user: {$ref: '#/components/schemas/UserRef'}
+        email: {$ref: '#/components/schemas/Email'}
+        role: {$ref: '#/components/schemas/Role'}
+        joined_at: {$ref: '#/components/schemas/Timestamp'}
+    MemberPatch:
+      type: object
+      additionalProperties: false
+      required: [role]
+      properties:
+        role: {type: string, enum: [editor, viewer]}
+    Invitation:
+      type: object
+      additionalProperties: false
+      required: [id, role, status, invited_by, created_at, expires_at]
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        role: {type: string, enum: [editor, viewer]}
+        status: {type: string, enum: [pending, accepted, revoked, expired]}
+        invited_by: {oneOf: [{$ref: '#/components/schemas/UserRef'}, {type: 'null'}]}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        expires_at: {$ref: '#/components/schemas/Timestamp'}
+    InvitationCreate:
+      type: object
+      additionalProperties: false
+      required: [role]
+      properties:
+        role: {type: string, enum: [editor, viewer]}
+        expires_in_days: {type: integer, minimum: 1, maximum: 7, default: 7}
+    InvitationCreated:
+      allOf:
+        - $ref: '#/components/schemas/Invitation'
+        - type: object
+          required: [invite_url]
+          properties:
+            invite_url: {type: string, description: 'https://<origin>/invite#token=<OpaqueToken> — токен во фрагменте, не попадает в логи сервера'}
+    InvitationPreview:
+      type: object
+      additionalProperties: false
+      required: [workspace_name, role, expires_at]
+      properties:
+        workspace_name: {type: string}
+        role: {type: string, enum: [editor, viewer]}
+        expires_at: {$ref: '#/components/schemas/Timestamp'}
+
+    # ---------- folders
+    FolderName: {type: string, minLength: 1, maxLength: 100, pattern: '^[^\x00-\x1F\x7F/\\]+$'}
+    Folder:
+      type: object
+      additionalProperties: false
+      required: [id, workspace_id, parent_id, name, depth, document_count, created_at, updated_at, version]
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        workspace_id: {$ref: '#/components/schemas/Uuid'}
+        parent_id: {oneOf: [{$ref: '#/components/schemas/Uuid'}, {type: 'null'}]}
+        name: {$ref: '#/components/schemas/FolderName'}
+        depth: {type: integer, minimum: 1, maximum: 3}
+        document_count: {type: integer, minimum: 0, description: Неудалённые документы непосредственно в папке}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+        version: {$ref: '#/components/schemas/Version'}
+    FolderCreate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {$ref: '#/components/schemas/FolderName'}
+        parent_id: {oneOf: [{$ref: '#/components/schemas/Uuid'}, {type: 'null'}], default: null}
+    FolderPatch:
+      type: object
+      additionalProperties: false
+      required: [version]
+      minProperties: 2
+      properties:
+        version: {$ref: '#/components/schemas/Version'}
+        name: {$ref: '#/components/schemas/FolderName'}
+        parent_id: {oneOf: [{$ref: '#/components/schemas/Uuid'}, {type: 'null'}]}
+
+    # ---------- documents
+    DocumentFormat: {type: string, enum: [txt, pdf, docx]}
+    DocumentStatus: {type: string, enum: [uploaded, processing, ready, error], description: 'Первичная обработка и доступность для поиска (значения v0.2). ready = есть действующая версия обработки.'}
+    DocumentWarning:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [code, pages]
+          properties:
+            code: {const: pages_without_text}
+            pages: {type: array, items: {type: integer, minimum: 1}, maxItems: 1000}
+        - type: object
+          additionalProperties: false
+          required: [code]
+          properties:
+            code: {type: string, enum: [content_truncated, unsupported_elements_skipped]}
+    DocumentOperation:
+      type: object
+      additionalProperties: false
+      required: [kind, state, error_code, error_message]
+      description: Текущая повторная обработка документа в статусе ready. Пока она идёт или после её ошибки поиск работает по прежней версии.
+      properties:
+        kind: {const: reprocess}
+        state: {type: string, enum: [queued, running, failed]}
+        error_code: {type: [string, 'null']}
+        error_message: {type: [string, 'null']}
+    Document:
+      type: object
+      additionalProperties: false
+      required: [id, workspace_id, folder_id, filename, format, status, error_code, error_message, operation, warnings,
+                 size_bytes, page_count, uploaded_by, can_delete, created_at, updated_at, version]
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        workspace_id: {$ref: '#/components/schemas/Uuid'}
+        folder_id: {oneOf: [{$ref: '#/components/schemas/Uuid'}, {type: 'null'}]}
+        filename: {type: string, minLength: 1, maxLength: 255}
+        format: {$ref: '#/components/schemas/DocumentFormat'}
+        status: {$ref: '#/components/schemas/DocumentStatus'}
+        error_code: {type: [string, 'null'], description: 'Не null ⇔ status=error'}
+        error_message: {type: [string, 'null'], description: 'Русское сообщение для error_code'}
+        operation: {oneOf: [{$ref: '#/components/schemas/DocumentOperation'}, {type: 'null'}]}
+        warnings: {type: array, items: {$ref: '#/components/schemas/DocumentWarning'}}
+        size_bytes: {type: integer, minimum: 1}
+        page_count: {type: [integer, 'null'], minimum: 0, description: Только PDF после обработки}
+        uploaded_by: {$ref: '#/components/schemas/UserRef'}
+        can_delete: {type: boolean, description: 'Может ли текущий пользователь удалить документ (owner — любой, editor — загруженный им). Только подсказка для UI; сервер проверяет сам.'}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+        version: {$ref: '#/components/schemas/Version'}
+    DocumentPatch:
+      type: object
+      additionalProperties: false
+      required: [version]
+      minProperties: 2
+      properties:
+        version: {$ref: '#/components/schemas/Version'}
+        filename: {type: string, minLength: 1, maxLength: 255, pattern: '^[^\x00-\x1F\x7F]+$'}
+        folder_id: {oneOf: [{$ref: '#/components/schemas/Uuid'}, {type: 'null'}]}
+    DocumentPage:
+      type: object
+      additionalProperties: false
+      required: [items, total, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Document'}}
+        total: {type: integer, minimum: 0, description: Количество по тем же фильтрам в этом пространстве}
+        next_cursor: {$ref: '#/components/schemas/NextCursor'}
+
+    # ---------- chats
+    Chat:
+      type: object
+      additionalProperties: false
+      required: [id, workspace_id, title, title_source, status, generating, created_at, updated_at, last_message_at, version]
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        workspace_id: {$ref: '#/components/schemas/Uuid'}
+        title: {type: string, minLength: 1, maxLength: 120}
+        title_source: {type: string, enum: [default, auto, user]}
+        status: {type: string, enum: [active, archived]}
+        generating: {type: boolean, description: В чате есть ответ в состоянии pending}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+        last_message_at: {oneOf: [{$ref: '#/components/schemas/Timestamp'}, {type: 'null'}]}
+        version: {$ref: '#/components/schemas/Version'}
+    ChatCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        title: {type: string, minLength: 1, maxLength: 120}
+    ChatPatch:
+      type: object
+      additionalProperties: false
+      required: [version]
+      minProperties: 2
+      properties:
+        version: {$ref: '#/components/schemas/Version'}
+        title: {type: string, minLength: 1, maxLength: 120}
+        status: {type: string, enum: [active, archived]}
+    ChatPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Chat'}}
+        next_cursor: {$ref: '#/components/schemas/NextCursor'}
+
+    Scope:
+      description: Область поиска. Отсутствие, null, пустые списки и частично невалидные списки — ошибка; расширения scope нет.
+      oneOf:
+        - {$ref: '#/components/schemas/WorkspaceScope'}
+        - {$ref: '#/components/schemas/FoldersScope'}
+        - {$ref: '#/components/schemas/DocumentsScope'}
+      discriminator:
+        propertyName: type
+        mapping:
+          workspace: '#/components/schemas/WorkspaceScope'
+          folders: '#/components/schemas/FoldersScope'
+          documents: '#/components/schemas/DocumentsScope'
+    WorkspaceScope:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type: {const: workspace}
+    FoldersScope:
+      type: object
+      additionalProperties: false
+      required: [type, folder_ids, include_subfolders]
+      properties:
+        type: {const: folders}
+        folder_ids: {type: array, minItems: 1, maxItems: 20, items: {$ref: '#/components/schemas/Uuid'}}
+        include_subfolders: {type: boolean}
+    DocumentsScope:
+      type: object
+      additionalProperties: false
+      required: [type, document_ids]
+      properties:
+        type: {const: documents}
+        document_ids: {type: array, minItems: 1, maxItems: 100, items: {$ref: '#/components/schemas/Uuid'}}
+
+    MessageCreate:
+      type: object
+      additionalProperties: false
+      required: [client_message_id, question, scope, use_history]
+      properties:
+        client_message_id: {$ref: '#/components/schemas/Uuid'}
+        question: {type: string, minLength: 1, maxLength: 2000, description: 'Обрезка пробелов по краям; пустой после обрезки — 422'}
+        scope: {$ref: '#/components/schemas/Scope'}
+        use_history: {type: boolean, description: 'Обязательное поле: участвует в fingerprint идемпотентности'}
+    AnswerStatus: {type: string, enum: [answered, partial, insufficient_info]}
+    UserMessage:
+      type: object
+      additionalProperties: false
+      required: [id, seq, role, content, scope, use_history, created_at]
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        seq: {type: integer, minimum: 1}
+        role: {const: user}
+        content: {type: string}
+        scope: {$ref: '#/components/schemas/Scope'}
+        use_history: {type: boolean}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+    AssistantMessage:
+      type: object
+      additionalProperties: false
+      required: [id, seq, role, reply_to_id, generation_status, status, content, redacted, error, sources, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        seq: {type: integer, minimum: 2}
+        role: {const: assistant}
+        reply_to_id: {$ref: '#/components/schemas/Uuid'}
+        generation_status: {type: string, enum: [pending, completed, failed]}
+        status:
+          description: Статус ответа (v0.2). null, пока generation_status ≠ completed.
+          oneOf: [{$ref: '#/components/schemas/AnswerStatus'}, {type: 'null'}]
+        content: {type: string, description: 'Текст ответа (v0.2 answer). "" для pending, failed и скрытых ответов'}
+        redacted:
+          type: boolean
+          description: 'Ответ скрыт целиком (решение №14): хотя бы один документ, фрагменты которого передавались модели, удалён. content="", sources=[]; вопрос пользователя сохраняется. Такие ответы не попадают в историю для следующих вопросов.'
+        error:
+          oneOf:
+            - type: 'null'
+            - type: object
+              additionalProperties: false
+              required: [code, message]
+              properties:
+                code: {type: string, enum: [llm_unavailable, llm_timeout, generation_interrupted, context_changed, internal_error]}
+                message: {type: string}
+        sources: {type: array, maxItems: 10, items: {$ref: '#/components/schemas/Source'}, description: 'Пусто для pending, failed и скрытых ответов'}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+    Message:
+      oneOf:
+        - {$ref: '#/components/schemas/UserMessage'}
+        - {$ref: '#/components/schemas/AssistantMessage'}
+      discriminator:
+        propertyName: role
+        mapping:
+          user: '#/components/schemas/UserMessage'
+          assistant: '#/components/schemas/AssistantMessage'
+    MessageExchange:
+      type: object
+      additionalProperties: false
+      required: [user_message, assistant_message, chat]
+      properties:
+        user_message: {$ref: '#/components/schemas/UserMessage'}
+        assistant_message: {$ref: '#/components/schemas/AssistantMessage'}
+        chat: {$ref: '#/components/schemas/Chat'}
+    MessagePage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Message'}}
+        next_cursor: {description: 'Курсор к более старым сообщениям, $ref: ''#/components/schemas/NextCursor'''}
+
+    # ---------- sources
+    Location:
+      description: Публичная позиция источника (anchor во внутренней модели может содержать больше полей).
+      oneOf:
+        - {$ref: '#/components/schemas/TxtLocation'}
+        - {$ref: '#/components/schemas/PdfLocation'}
+        - {$ref: '#/components/schemas/DocxLocation'}
+      discriminator:
+        propertyName: kind
+        mapping:
+          txt: '#/components/schemas/TxtLocation'
+          pdf: '#/components/schemas/PdfLocation'
+          docx: '#/components/schemas/DocxLocation'
+    TableRef:
+      type: [object, 'null']
+      additionalProperties: false
+      required: [table, row]
+      properties:
+        table: {type: integer, minimum: 1, description: Номер таблицы в документе (PDF — на странице) с 1}
+        row: {type: integer, minimum: 1, description: 'Номер строки таблицы с 1, включая строку заголовка'}
+    TxtLocation:
+      type: object
+      additionalProperties: false
+      required: [kind, start_char, end_char]
+      properties:
+        kind: {const: txt}
+        start_char: {type: integer, minimum: 0}
+        end_char: {type: integer, minimum: 1}
+    PdfLocation:
+      type: object
+      additionalProperties: false
+      required: [kind, page, table]
+      properties:
+        kind: {const: pdf}
+        page: {type: integer, minimum: 1, description: 'Физический номер страницы в файле, с 1'}
+        table: {$ref: '#/components/schemas/TableRef'}
+    DocxLocation:
+      type: object
+      additionalProperties: false
+      required: [kind, paragraph, section, table]
+      properties:
+        kind: {const: docx}
+        paragraph: {type: [integer, 'null'], minimum: 1, description: Номер абзаца тела документа с 1 (абзацы внутри таблиц не считаются); null для строки таблицы}
+        section: {type: array, maxItems: 9, items: {type: string, maxLength: 200}, description: Путь заголовков от верхнего уровня}
+        table: {$ref: '#/components/schemas/TableRef'}
+    Source:
+      type: object
+      additionalProperties: false
+      required: [id, document_id, filename, format, run_id, block_id, chunk_id, start_char, end_char, quote, location, location_label, availability]
+      properties:
+        id: {$ref: '#/components/schemas/Uuid'}
+        document_id: {$ref: '#/components/schemas/Uuid'}
+        filename: {type: string}
+        format: {$ref: '#/components/schemas/DocumentFormat'}
+        run_id: {$ref: '#/components/schemas/Uuid'}
+        block_id: {$ref: '#/components/schemas/Uuid'}
+        chunk_id: {$ref: '#/components/schemas/Uuid'}
+        start_char: {type: integer, minimum: 0, description: 'Python Unicode code points в извлечённом тексте run (v0.2); клиент не пересчитывает'}
+        end_char: {type: integer, minimum: 1}
+        quote: {type: string, description: 'Точная подстрока извлечённого текста run; "" если источник недоступен'}
+        location: {$ref: '#/components/schemas/Location'}
+        location_label: {type: string, examples: ['стр. 4', 'стр. 4, таблица 2, строка 5', 'абзац 12, раздел «2.1 Риски»', 'символы 120–260']}
+        availability:
+          type: string
+          enum: [available, reprocessed]
+          description: 'reprocessed — документ переобработан после ответа; цитата и контекст — из исходного run. Источников скрытых ответов в API нет: в списках sources=[], GET источника — 410 source_unavailable.'
+    SourceDetail:
+      allOf:
+        - $ref: '#/components/schemas/Source'
+        - type: object
+          required: [context]
+          properties:
+            context:
+              description: Соседние блоки того же run (≤ 1500 символов). null, если run уже очищен или источник недоступен.
+              oneOf:
+                - type: 'null'
+                - type: object
+                  additionalProperties: false
+                  required: [before, after]
+                  properties:
+                    before: {type: string, maxLength: 1500}
+                    after: {type: string, maxLength: 1500}
+
+    # ---------- search diagnostics
+    SearchRequest:
+      type: object
+      additionalProperties: false
+      required: [query, scope, retriever]
+      properties:
+        query: {type: string, minLength: 1, maxLength: 2000}
+        scope: {$ref: '#/components/schemas/Scope'}
+        retriever: {type: string, enum: [lexical, fts, vector, hybrid]}
+        top_k: {type: integer, minimum: 1, maximum: 50, default: 10}
+    SearchResult:
+      type: object
+      additionalProperties: false
+      required: [retriever, embedding_model, degraded, items]
+      properties:
+        retriever: {type: string}
+        embedding_model: {type: [string, 'null']}
+        degraded: {type: boolean, description: 'Векторная ветка недоступна, использован только лексический поиск'}
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [rank, score, document_id, filename, chunk_id, run_id, content, location]
+            properties:
+              rank: {type: integer, minimum: 1}
+              score: {type: number}
+              document_id: {$ref: '#/components/schemas/Uuid'}
+              filename: {type: string}
+              chunk_id: {$ref: '#/components/schemas/Uuid'}
+              run_id: {$ref: '#/components/schemas/Uuid'}
+              content: {type: string}
+              location: {$ref: '#/components/schemas/Location'}
+
+    # ---------- preview
+    PreviewInfo:
+      type: object
+      additionalProperties: false
+      required: [document_id, format, run_id, run_status, modes, page_count, block_count, outline]
+      properties:
+        document_id: {$ref: '#/components/schemas/Uuid'}
+        format: {$ref: '#/components/schemas/DocumentFormat'}
+        run_id: {$ref: '#/components/schemas/Uuid'}
+        run_status: {type: string, enum: [active, superseded]}
+        modes:
+          type: array
+          minItems: 1
+          items: {type: string, enum: [pdf_original, text]}
+          description: 'pdf_original — отрисовка оригинала во frontend (только PDF и только для активного run); text — извлечённый текст по блокам (все форматы)'
+        page_count: {type: [integer, 'null'], minimum: 1}
+        block_count: {type: integer, minimum: 1}
+        outline:
+          type: array
+          maxItems: 500
+          description: Заголовки (DOCX — стили заголовков; PDF — эвристика) для навигации по разделам
+          items:
+            type: object
+            additionalProperties: false
+            required: [block_id, title, level, location]
+            properties:
+              block_id: {$ref: '#/components/schemas/Uuid'}
+              title: {type: string, maxLength: 200}
+              level: {type: integer, minimum: 1, maximum: 9}
+              location: {$ref: '#/components/schemas/Location'}
+    PreviewBlock:
+      type: object
+      additionalProperties: false
+      required: [block_id, position, block_type, text, start_char, end_char, location]
+      properties:
+        block_id: {$ref: '#/components/schemas/Uuid'}
+        position: {type: integer, minimum: 0}
+        block_type: {type: string, enum: [text, paragraph, heading, list_item, table_row]}
+        text: {type: string, description: 'Текст блока как есть; клиент выводит его только как текст (не HTML)'}
+        start_char: {type: integer, minimum: 0}
+        end_char: {type: integer, minimum: 1}
+        location: {$ref: '#/components/schemas/Location'}
+    PreviewBlockPage:
+      type: object
+      additionalProperties: false
+      required: [run_id, items, next_cursor]
+      properties:
+        run_id: {$ref: '#/components/schemas/Uuid'}
+        items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/PreviewBlock'}}
+        next_cursor: {$ref: '#/components/schemas/NextCursor'}
